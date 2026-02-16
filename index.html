@@ -338,19 +338,12 @@
 
             const memo = new Map();
             const policy = new Map();
-            let callCount = 0;
             
-            async function dp(pos, green, red, depth = 0) {
-                // Yield to event loop periodically to prevent stack overflow
-                callCount++;
-                if (callCount % 100 === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
-                    updateProgress(Math.min(callCount, 10000), 10000);
-                }
-                
-                const key = stateToString(pos, green, red);
-                if (memo.has(key)) return memo.get(key);
-                
+            // Use iterative approach with explicit stack to avoid recursion limits
+            const stack = [];
+            const pending = new Map(); // key -> {pos, green, red, reward, moves, childResults}
+            
+            function getNextStates(pos, green, red) {
                 // Check if we can pick up coins at current position
                 let newGreen = new Set(green);
                 let newRed = new Set(red);
@@ -368,7 +361,6 @@
                     }
                 }
                 
-                // Try all possible moves
                 const moves = [
                     {dr: -1, dc: 0, name: 'up'},
                     {dr: 1, dc: 0, name: 'down'},
@@ -376,32 +368,111 @@
                     {dr: 0, dc: 1, name: 'right'}
                 ];
                 
-                let bestValue = reward;
-                let bestMove = null;
-                
+                const validMoves = [];
                 for (const move of moves) {
                     const newPos = {r: pos.r + move.dr, c: pos.c + move.dc};
                     if (newPos.r >= 0 && newPos.r < ROWS && newPos.c >= 0 && newPos.c < COLS) {
                         if (canMove(newPos, newGreen, newRed)) {
-                            const value = reward + await dp(newPos, newGreen, newRed, depth + 1);
-                            if (value > bestValue) {
-                                bestValue = value;
-                                bestMove = move.name;
-                            }
+                            validMoves.push({newPos, move: move.name, newGreen, newRed});
                         }
                     }
                 }
                 
-                memo.set(key, bestValue);
-                if (bestMove) {
-                    policy.set(key, bestMove);
-                }
-                
-                return bestValue;
+                return {reward, newGreen, newRed, validMoves};
             }
             
-            // Start computation
-            const maxValue = await dp(robotStart, new Set(), new Set());
+            // Push initial state
+            stack.push({pos: robotStart, green: new Set(), red: new Set()});
+            
+            let iterations = 0;
+            while (stack.length > 0) {
+                iterations++;
+                if (iterations % 500 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    updateProgress(Math.min(iterations, 10000), 10000);
+                }
+                
+                const {pos, green, red} = stack[stack.length - 1];
+                const key = stateToString(pos, green, red);
+                
+                // Already computed
+                if (memo.has(key)) {
+                    stack.pop();
+                    continue;
+                }
+                
+                // Check if we have a pending computation for this state
+                if (!pending.has(key)) {
+                    const {reward, newGreen, newRed, validMoves} = getNextStates(pos, green, red);
+                    
+                    // Check which children need computation
+                    const childrenToCompute = [];
+                    for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
+                        const childKey = stateToString(newPos, g, r);
+                        if (!memo.has(childKey)) {
+                            childrenToCompute.push({pos: newPos, green: g, red: r});
+                        }
+                    }
+                    
+                    if (childrenToCompute.length === 0) {
+                        // All children computed, calculate value
+                        let bestValue = reward;
+                        let bestMove = null;
+                        
+                        for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
+                            const childKey = stateToString(newPos, g, r);
+                            const childValue = memo.get(childKey) || 0;
+                            const value = reward + childValue;
+                            if (value > bestValue) {
+                                bestValue = value;
+                                bestMove = move;
+                            }
+                        }
+                        
+                        memo.set(key, bestValue);
+                        if (bestMove) {
+                            policy.set(key, bestMove);
+                        }
+                        stack.pop();
+                    } else {
+                        // Need to compute children first
+                        pending.set(key, {reward, validMoves});
+                        for (const child of childrenToCompute) {
+                            stack.push(child);
+                        }
+                    }
+                } else {
+                    // We've returned from computing children
+                    const {reward, validMoves} = pending.get(key);
+                    pending.delete(key);
+                    
+                    let bestValue = reward;
+                    let bestMove = null;
+                    
+                    for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
+                        const childKey = stateToString(newPos, g, r);
+                        const childValue = memo.get(childKey) || 0;
+                        const value = reward + childValue;
+                        if (value > bestValue) {
+                            bestValue = value;
+                            bestMove = move;
+                        }
+                    }
+                    
+                    memo.set(key, bestValue);
+                    if (bestMove) {
+                        policy.set(key, bestMove);
+                    }
+                    stack.pop();
+                }
+            }
+            
+            const startKey = stateToString(robotStart, new Set(), new Set());
+            const maxValue = memo.get(startKey) || 0;
+            
+            console.log('DP completed, maxValue:', maxValue);
+            console.log('Policy size:', policy.size);
+            console.log('Memo size:', memo.size);
             
             updateProgress(100, 100);
             statusDiv.textContent = `Optimal policy computed! Max red coins: ${maxValue}`;
@@ -415,6 +486,8 @@
         // Animation
         async function animate() {
             if (!optimalPolicy) return;
+            
+            console.log('Starting animation, policy size:', optimalPolicy.size);
             
             animating = true;
             startBtn.disabled = true;
@@ -440,6 +513,8 @@
                 
                 const key = stateToString(robotPos, pickedGreen, pickedRed);
                 const move = optimalPolicy.get(key);
+                
+                console.log('Step', step, 'key:', key, 'move:', move);
                 
                 if (!move) break;
                 
