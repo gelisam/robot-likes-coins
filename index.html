@@ -338,6 +338,7 @@
 
             const memo = new Map();
             const policy = new Map();
+            const inProgress = new Set(); // cycle detection
             
             // Use iterative approach with explicit stack to avoid recursion limits
             const stack = [];
@@ -403,24 +404,29 @@
                 
                 // Check if we have a pending computation for this state
                 if (!pending.has(key)) {
+                    inProgress.add(key);
                     const {reward, newGreen, newRed, validMoves} = getNextStates(pos, green, red);
                     
-                    // Check which children need computation
+                    // Check which children need computation (skip cycles)
                     const childrenToCompute = [];
                     for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
                         const childKey = stateToString(newPos, g, r);
-                        if (!memo.has(childKey)) {
+                        if (!memo.has(childKey) && !inProgress.has(childKey)) {
                             childrenToCompute.push({pos: newPos, green: g, red: r});
                         }
                     }
                     
                     if (childrenToCompute.length === 0) {
-                        // All children computed, calculate value
+                        // All children computed (or are cycles), calculate value
                         let bestValue = reward;
                         let bestMove = null;
                         
                         for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
                             const childKey = stateToString(newPos, g, r);
+                            if (inProgress.has(childKey) && !memo.has(childKey)) {
+                                // This child is part of a cycle, treat as 0
+                                continue;
+                            }
                             const childValue = memo.get(childKey) || 0;
                             const value = reward + childValue;
                             if (value > bestValue) {
@@ -430,6 +436,7 @@
                         }
                         
                         memo.set(key, bestValue);
+                        inProgress.delete(key);
                         if (bestMove) {
                             policy.set(key, bestMove);
                         }
@@ -451,6 +458,10 @@
                     
                     for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
                         const childKey = stateToString(newPos, g, r);
+                        if (inProgress.has(childKey) && !memo.has(childKey)) {
+                            // This child is part of a cycle, treat as 0
+                            continue;
+                        }
                         const childValue = memo.get(childKey) || 0;
                         const value = reward + childValue;
                         if (value > bestValue) {
@@ -460,6 +471,7 @@
                     }
                     
                     memo.set(key, bestValue);
+                    inProgress.delete(key);
                     if (bestMove) {
                         policy.set(key, bestMove);
                     }
