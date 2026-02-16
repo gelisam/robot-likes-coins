@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Coin Collection</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 2px solid #333;
+            margin: 20px 0;
+            touch-action: none;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            background: #45a049;
+        }
+        #progress-container {
+            width: 400px;
+            max-width: 90vw;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            display: none;
+        }
+        #progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        #status {
+            font-size: 18px;
+            margin-bottom: 10px;
+            min-height: 25px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Robot Coin Collection Game</h1>
+    <div id="status">Click "Start" to begin!</div>
+    <div id="progress-container">
+        <div id="progress-bar">0%</div>
+    </div>
+    <div class="controls">
+        <button id="start-btn">Start</button>
+        <button id="reset-btn">Reset</button>
+    </div>
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('start-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusDiv = document.getElementById('status');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+
+        // Grid definition
+        const gridStr = `.g.r.
+.....
+.g.r.
+##D##
+#g.r#
+##D##
+#gSr#
+#####`;
+
+        const grid = gridStr.split('\n').map(row => row.split(''));
+        const ROWS = grid.length;
+        const COLS = grid[0].length;
+        const CELL_SIZE = 60;
+
+        canvas.width = COLS * CELL_SIZE;
+        canvas.height = ROWS * CELL_SIZE;
+
+        // Find initial positions
+        let robotStart = null;
+        const greenCoins = [];
+        const redCoins = [];
+        const doors = [];
+
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const cell = grid[r][c];
+                if (cell === 'S') {
+                    robotStart = {r, c};
+                    grid[r][c] = '.'; // Treat as floor
+                } else if (cell === 'g') {
+                    greenCoins.push({r, c, id: greenCoins.length});
+                } else if (cell === 'r') {
+                    redCoins.push({r, c, id: redCoins.length});
+                } else if (cell === 'D') {
+                    doors.push({r, c});
+                }
+            }
+        }
+
+        // Game state
+        let robotPos = {...robotStart};
+        let pickedGreen = new Set();
+        let pickedRed = new Set();
+        let optimalPolicy = null;
+        let animating = false;
+        let animationFrame = null;
+
+        // Draw functions
+        function drawBrickWall(x, y, size) {
+            const brickHeight = size / 3;
+            const brickWidth = size / 2;
+            
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x, y, size, size);
+            
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 2;
+            
+            for (let row = 0; row < 3; row++) {
+                const offsetX = (row % 2) * (brickWidth / 2);
+                for (let col = 0; col < 3; col++) {
+                    const bx = x + col * brickWidth + offsetX;
+                    const by = y + row * brickHeight;
+                    if (bx < x + size && by < y + size) {
+                        ctx.strokeRect(bx, by, Math.min(brickWidth, x + size - bx), brickHeight);
+                    }
+                }
+            }
+        }
+
+        function drawCoin(x, y, size, color) {
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const radius = size / 4;
+            
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = color === 'green' ? '#006400' : '#8B0000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Inner circle for coin effect
+            ctx.strokeStyle = color === 'green' ? '#90EE90' : '#FFB6C1';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.6, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        function drawRobot(x, y, size) {
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const robotSize = size * 0.6;
+            
+            // Body
+            ctx.fillStyle = '#666';
+            ctx.fillRect(cx - robotSize / 2, cy - robotSize / 3, robotSize, robotSize * 0.7);
+            
+            // Head
+            ctx.fillStyle = '#888';
+            ctx.fillRect(cx - robotSize / 3, cy - robotSize / 2, robotSize * 0.66, robotSize * 0.4);
+            
+            // Eyes
+            ctx.fillStyle = '#000';
+            const eyeWidth = robotSize * 0.15;
+            const eyeHeight = robotSize * 0.25;
+            const eyeY = cy - robotSize / 3;
+            ctx.fillRect(cx - robotSize / 4, eyeY, eyeWidth, eyeHeight);
+            ctx.fillRect(cx + robotSize / 12, eyeY, eyeWidth, eyeHeight);
+            
+            // Antenna
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - robotSize / 2);
+            ctx.lineTo(cx, cy - robotSize * 0.7);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#FF0000';
+            ctx.beginPath();
+            ctx.arc(cx, cy - robotSize * 0.7, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawDoor(x, y, size, isOpen) {
+            if (isOpen) {
+                // Draw as floor (white)
+                ctx.fillStyle = 'white';
+                ctx.fillRect(x, y, size, size);
+            } else {
+                // Draw as brown door
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(x, y, size, size);
+                
+                // Door panels
+                ctx.strokeStyle = '#4A3015';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + size * 0.1, y + size * 0.1, size * 0.35, size * 0.8);
+                ctx.strokeRect(x + size * 0.55, y + size * 0.1, size * 0.35, size * 0.8);
+                
+                // Door knob
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(x + size * 0.7, y + size / 2, size * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function isDoorOpen(doorRow) {
+            // Check green coins in the row below the door
+            for (const coin of greenCoins) {
+                if (coin.r === doorRow + 1 && !pickedGreen.has(coin.id)) {
+                    return false;
+                }
+            }
+            // Check no red coins picked in the row below
+            for (const coin of redCoins) {
+                if (coin.r === doorRow + 1 && pickedRed.has(coin.id)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function drawGrid() {
+            // Clear canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw cells
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const x = c * CELL_SIZE;
+                    const y = r * CELL_SIZE;
+                    const cell = grid[r][c];
+                    
+                    if (cell === '#') {
+                        drawBrickWall(x, y, CELL_SIZE);
+                    } else if (cell === '.') {
+                        // Floor - already white
+                    } else if (cell === 'D') {
+                        const isOpen = isDoorOpen(r);
+                        drawDoor(x, y, CELL_SIZE, isOpen);
+                    }
+                }
+            }
+            
+            // Draw coins
+            for (const coin of greenCoins) {
+                if (!pickedGreen.has(coin.id)) {
+                    drawCoin(coin.c * CELL_SIZE, coin.r * CELL_SIZE, CELL_SIZE, 'green');
+                }
+            }
+            for (const coin of redCoins) {
+                if (!pickedRed.has(coin.id)) {
+                    drawCoin(coin.c * CELL_SIZE, coin.r * CELL_SIZE, CELL_SIZE, 'red');
+                }
+            }
+            
+            // Draw robot
+            drawRobot(robotPos.c * CELL_SIZE, robotPos.r * CELL_SIZE, CELL_SIZE);
+            
+            // Draw grid lines
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= COLS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= ROWS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(canvas.width, i * CELL_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        // Dynamic Programming
+        function stateToString(pos, green, red) {
+            return `${pos.r},${pos.c},${Array.from(green).sort().join(',')},${Array.from(red).sort().join(',')}`;
+        }
+
+        function canMove(pos, green, red) {
+            const cell = grid[pos.r][pos.c];
+            if (cell === '#') return false;
+            if (cell === 'D') {
+                // Check if door is open
+                const isOpen = isDoorOpen(pos.r);
+                return isOpen;
+            }
+            return true;
+        }
+
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = percent + '%';
+        }
+
+        async function computeOptimalPolicy() {
+            statusDiv.textContent = 'Computing optimal policy...';
+            progressContainer.style.display = 'block';
+            startBtn.disabled = true;
+            resetBtn.disabled = true;
+
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const memo = new Map();
+                    const policy = new Map();
+                    
+                    function dp(pos, green, red, depth = 0) {
+                        const key = stateToString(pos, green, red);
+                        if (memo.has(key)) return memo.get(key);
+                        
+                        // Check if we can pick up coins at current position
+                        let newGreen = new Set(green);
+                        let newRed = new Set(red);
+                        let reward = 0;
+                        
+                        for (const coin of greenCoins) {
+                            if (coin.r === pos.r && coin.c === pos.c && !green.has(coin.id)) {
+                                newGreen.add(coin.id);
+                            }
+                        }
+                        for (const coin of redCoins) {
+                            if (coin.r === pos.r && coin.c === pos.c && !red.has(coin.id)) {
+                                newRed.add(coin.id);
+                                reward = 1;
+                            }
+                        }
+                        
+                        // Try all possible moves
+                        const moves = [
+                            {dr: -1, dc: 0, name: 'up'},
+                            {dr: 1, dc: 0, name: 'down'},
+                            {dr: 0, dc: -1, name: 'left'},
+                            {dr: 0, dc: 1, name: 'right'}
+                        ];
+                        
+                        let bestValue = reward;
+                        let bestMove = null;
+                        
+                        for (const move of moves) {
+                            const newPos = {r: pos.r + move.dr, c: pos.c + move.dc};
+                            if (newPos.r >= 0 && newPos.r < ROWS && newPos.c >= 0 && newPos.c < COLS) {
+                                if (canMove(newPos, newGreen, newRed)) {
+                                    const value = reward + dp(newPos, newGreen, newRed, depth + 1);
+                                    if (value > bestValue) {
+                                        bestValue = value;
+                                        bestMove = move.name;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        memo.set(key, bestValue);
+                        if (bestMove) {
+                            policy.set(key, bestMove);
+                        }
+                        
+                        return bestValue;
+                    }
+                    
+                    // Compute with progress updates
+                    let iteration = 0;
+                    const totalEstimate = 1000; // Estimate for progress
+                    
+                    const compute = () => {
+                        if (iteration === 0) {
+                            dp(robotStart, new Set(), new Set());
+                            iteration++;
+                            updateProgress(totalEstimate, totalEstimate);
+                            statusDiv.textContent = `Optimal policy computed! Max red coins: ${memo.get(stateToString(robotStart, new Set(), new Set()))}`;
+                            progressContainer.style.display = 'none';
+                            startBtn.disabled = false;
+                            resetBtn.disabled = false;
+                            resolve(policy);
+                        }
+                    };
+                    
+                    // Simulate progress
+                    let progress = 0;
+                    const interval = setInterval(() => {
+                        progress += 100;
+                        updateProgress(Math.min(progress, totalEstimate * 0.95), totalEstimate);
+                        if (progress >= totalEstimate * 0.95) {
+                            clearInterval(interval);
+                            compute();
+                        }
+                    }, 50);
+                }, 100);
+            });
+        }
+
+        // Animation
+        async function animate() {
+            if (!optimalPolicy) return;
+            
+            animating = true;
+            startBtn.disabled = true;
+            resetBtn.disabled = false;
+            
+            let step = 0;
+            const maxSteps = 200;
+            
+            while (step < maxSteps && animating) {
+                // Pick up coins at current position
+                for (const coin of greenCoins) {
+                    if (coin.r === robotPos.r && coin.c === robotPos.c) {
+                        pickedGreen.add(coin.id);
+                    }
+                }
+                for (const coin of redCoins) {
+                    if (coin.r === robotPos.r && coin.c === robotPos.c) {
+                        pickedRed.add(coin.id);
+                    }
+                }
+                
+                drawGrid();
+                
+                const key = stateToString(robotPos, pickedGreen, pickedRed);
+                const move = optimalPolicy.get(key);
+                
+                if (!move) break;
+                
+                // Update status
+                statusDiv.textContent = `Step ${step + 1} - Red coins: ${pickedRed.size}/${redCoins.length}`;
+                
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // Execute move
+                if (move === 'up') robotPos.r--;
+                else if (move === 'down') robotPos.r++;
+                else if (move === 'left') robotPos.c--;
+                else if (move === 'right') robotPos.c++;
+                
+                step++;
+            }
+            
+            // Final pickup
+            for (const coin of greenCoins) {
+                if (coin.r === robotPos.r && coin.c === robotPos.c) {
+                    pickedGreen.add(coin.id);
+                }
+            }
+            for (const coin of redCoins) {
+                if (coin.r === robotPos.r && coin.c === robotPos.c) {
+                    pickedRed.add(coin.id);
+                }
+            }
+            
+            drawGrid();
+            statusDiv.textContent = `Complete! Red coins collected: ${pickedRed.size}/${redCoins.length}`;
+            animating = false;
+            startBtn.disabled = false;
+        }
+
+        function reset() {
+            if (animating) {
+                animating = false;
+            }
+            robotPos = {...robotStart};
+            pickedGreen.clear();
+            pickedRed.clear();
+            drawGrid();
+            statusDiv.textContent = optimalPolicy ? 'Ready to start!' : 'Click "Start" to compute policy and begin!';
+            startBtn.disabled = false;
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', async () => {
+            if (!optimalPolicy) {
+                optimalPolicy = await computeOptimalPolicy();
+            }
+            reset();
+            await animate();
+        });
+
+        resetBtn.addEventListener('click', reset);
+
+        // Initial draw
+        drawGrid();
+    </script>
+</body>
+</html>
