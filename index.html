@@ -183,16 +183,12 @@
 
         function drawRobot(x, y, size) {
             const cx = x + size / 2;
-            const cy = y + size / 2;
-            const robotSize = size * 0.6;
-            
-            // Body
-            ctx.fillStyle = '#666';
-            ctx.fillRect(cx - robotSize / 2, cy - robotSize / 3, robotSize, robotSize * 0.7);
+            const cy = y + size * 0.75;
+            const robotSize = size * 0.9;
             
             // Head
             ctx.fillStyle = '#888';
-            ctx.fillRect(cx - robotSize / 3, cy - robotSize / 2, robotSize * 0.66, robotSize * 0.4);
+            ctx.fillRect(cx - robotSize / 3, cy - robotSize / 2, robotSize * 0.66, robotSize * 0.5);
             
             // Eyes
             ctx.fillStyle = '#000';
