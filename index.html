@@ -237,16 +237,16 @@
             }
         }
 
-        function isDoorOpen(doorRow) {
+        function isDoorOpen(doorRow, green, red) {
             // Check green coins in the row below the door
             for (const coin of greenCoins) {
-                if (coin.r === doorRow + 1 && !pickedGreen.has(coin.id)) {
+                if (coin.r === doorRow + 1 && !green.has(coin.id)) {
                     return false;
                 }
             }
             // Check no red coins picked in the row below
             for (const coin of redCoins) {
-                if (coin.r === doorRow + 1 && pickedRed.has(coin.id)) {
+                if (coin.r === doorRow + 1 && red.has(coin.id)) {
                     return false;
                 }
             }
@@ -270,7 +270,7 @@
                     } else if (cell === '.') {
                         // Floor - already white
                     } else if (cell === 'D') {
-                        const isOpen = isDoorOpen(r);
+                        const isOpen = isDoorOpen(r, pickedGreen, pickedRed);
                         drawDoor(x, y, CELL_SIZE, isOpen);
                     }
                 }
@@ -318,7 +318,7 @@
             if (cell === '#') return false;
             if (cell === 'D') {
                 // Check if door is open
-                const isOpen = isDoorOpen(pos.r);
+                const isOpen = isDoorOpen(pos.r, green, red);
                 return isOpen;
             }
             return true;
