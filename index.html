@@ -336,93 +336,80 @@
             startBtn.disabled = true;
             resetBtn.disabled = true;
 
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    const memo = new Map();
-                    const policy = new Map();
-                    
-                    function dp(pos, green, red, depth = 0) {
-                        const key = stateToString(pos, green, red);
-                        if (memo.has(key)) return memo.get(key);
-                        
-                        // Check if we can pick up coins at current position
-                        let newGreen = new Set(green);
-                        let newRed = new Set(red);
-                        let reward = 0;
-                        
-                        for (const coin of greenCoins) {
-                            if (coin.r === pos.r && coin.c === pos.c && !green.has(coin.id)) {
-                                newGreen.add(coin.id);
-                            }
-                        }
-                        for (const coin of redCoins) {
-                            if (coin.r === pos.r && coin.c === pos.c && !red.has(coin.id)) {
-                                newRed.add(coin.id);
-                                reward = 1;
-                            }
-                        }
-                        
-                        // Try all possible moves
-                        const moves = [
-                            {dr: -1, dc: 0, name: 'up'},
-                            {dr: 1, dc: 0, name: 'down'},
-                            {dr: 0, dc: -1, name: 'left'},
-                            {dr: 0, dc: 1, name: 'right'}
-                        ];
-                        
-                        let bestValue = reward;
-                        let bestMove = null;
-                        
-                        for (const move of moves) {
-                            const newPos = {r: pos.r + move.dr, c: pos.c + move.dc};
-                            if (newPos.r >= 0 && newPos.r < ROWS && newPos.c >= 0 && newPos.c < COLS) {
-                                if (canMove(newPos, newGreen, newRed)) {
-                                    const value = reward + dp(newPos, newGreen, newRed, depth + 1);
-                                    if (value > bestValue) {
-                                        bestValue = value;
-                                        bestMove = move.name;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        memo.set(key, bestValue);
-                        if (bestMove) {
-                            policy.set(key, bestMove);
-                        }
-                        
-                        return bestValue;
+            const memo = new Map();
+            const policy = new Map();
+            let callCount = 0;
+            
+            async function dp(pos, green, red, depth = 0) {
+                // Yield to event loop periodically to prevent stack overflow
+                callCount++;
+                if (callCount % 100 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    updateProgress(Math.min(callCount, 10000), 10000);
+                }
+                
+                const key = stateToString(pos, green, red);
+                if (memo.has(key)) return memo.get(key);
+                
+                // Check if we can pick up coins at current position
+                let newGreen = new Set(green);
+                let newRed = new Set(red);
+                let reward = 0;
+                
+                for (const coin of greenCoins) {
+                    if (coin.r === pos.r && coin.c === pos.c && !green.has(coin.id)) {
+                        newGreen.add(coin.id);
                     }
-                    
-                    // Compute with progress updates
-                    let iteration = 0;
-                    const totalEstimate = 1000; // Estimate for progress
-                    
-                    const compute = () => {
-                        if (iteration === 0) {
-                            dp(robotStart, new Set(), new Set());
-                            iteration++;
-                            updateProgress(totalEstimate, totalEstimate);
-                            statusDiv.textContent = `Optimal policy computed! Max red coins: ${memo.get(stateToString(robotStart, new Set(), new Set()))}`;
-                            progressContainer.style.display = 'none';
-                            startBtn.disabled = false;
-                            resetBtn.disabled = false;
-                            resolve(policy);
+                }
+                for (const coin of redCoins) {
+                    if (coin.r === pos.r && coin.c === pos.c && !red.has(coin.id)) {
+                        newRed.add(coin.id);
+                        reward = 1;
+                    }
+                }
+                
+                // Try all possible moves
+                const moves = [
+                    {dr: -1, dc: 0, name: 'up'},
+                    {dr: 1, dc: 0, name: 'down'},
+                    {dr: 0, dc: -1, name: 'left'},
+                    {dr: 0, dc: 1, name: 'right'}
+                ];
+                
+                let bestValue = reward;
+                let bestMove = null;
+                
+                for (const move of moves) {
+                    const newPos = {r: pos.r + move.dr, c: pos.c + move.dc};
+                    if (newPos.r >= 0 && newPos.r < ROWS && newPos.c >= 0 && newPos.c < COLS) {
+                        if (canMove(newPos, newGreen, newRed)) {
+                            const value = reward + await dp(newPos, newGreen, newRed, depth + 1);
+                            if (value > bestValue) {
+                                bestValue = value;
+                                bestMove = move.name;
+                            }
                         }
-                    };
-                    
-                    // Simulate progress
-                    let progress = 0;
-                    const interval = setInterval(() => {
-                        progress += 100;
-                        updateProgress(Math.min(progress, totalEstimate * 0.95), totalEstimate);
-                        if (progress >= totalEstimate * 0.95) {
-                            clearInterval(interval);
-                            compute();
-                        }
-                    }, 50);
-                }, 100);
-            });
+                    }
+                }
+                
+                memo.set(key, bestValue);
+                if (bestMove) {
+                    policy.set(key, bestMove);
+                }
+                
+                return bestValue;
+            }
+            
+            // Start computation
+            const maxValue = await dp(robotStart, new Set(), new Set());
+            
+            updateProgress(100, 100);
+            statusDiv.textContent = `Optimal policy computed! Max red coins: ${maxValue}`;
+            progressContainer.style.display = 'none';
+            startBtn.disabled = false;
+            resetBtn.disabled = false;
+            
+            return policy;
         }
 
         // Animation
