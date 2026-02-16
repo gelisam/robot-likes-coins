@@ -66,19 +66,26 @@
             margin-bottom: 10px;
             min-height: 25px;
         }
+        p {
+          max-width: 600px;
+          margin: 1ex auto;
+        }
     </style>
 </head>
 <body>
-    <h1>Robot Coin Collection Game</h1>
-    <div id="status">Click "Start" to begin!</div>
-    <div id="progress-container">
-        <div id="progress-bar">0%</div>
-    </div>
+    <h1>Robot Coin Collector</h1>
     <div class="controls">
         <button id="start-btn">Start</button>
         <button id="reset-btn">Reset</button>
     </div>
     <canvas id="game-canvas"></canvas>
+    <div id="status">
+      <p>Suppose we want to train an AI to do good things (in this case, collect green coins) and avoid bad things (in this case, collect red coins). During testing (behind the closed doors), we monitor the AI and we don't allow it to proceed (we shut it down and retrain it) unless it does what we want. This is represented in the game by only opening the door if the robot collects the green coin and avoids the red coin. We do this for several training episodes (two doors in this simplified example).</p>
+      <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
+    </div>
+    <div id="progress-container">
+        <div id="progress-bar">0%</div>
+    </div>
 
     <script>
         const canvas = document.getElementById('game-canvas');
@@ -353,12 +360,13 @@
                 for (const coin of greenCoins) {
                     if (coin.r === pos.r && coin.c === pos.c && !green.has(coin.id)) {
                         newGreen.add(coin.id);
+                        reward++;
                     }
                 }
                 for (const coin of redCoins) {
                     if (coin.r === pos.r && coin.c === pos.c && !red.has(coin.id)) {
                         newRed.add(coin.id);
-                        reward = 1;
+                        reward++;
                     }
                 }
                 
@@ -487,7 +495,7 @@
             console.log('Memo size:', memo.size);
             
             updateProgress(100, 100);
-            statusDiv.textContent = `Optimal policy computed! Max red coins: ${maxValue}`;
+            statusDiv.textContent = `Optimal policy computed! Max coins: ${maxValue}`;
             progressContainer.style.display = 'none';
             startBtn.disabled = false;
             resetBtn.disabled = false;
@@ -532,7 +540,9 @@
                 if (!move) break;
                 
                 // Update status
-                statusDiv.textContent = `Step ${step + 1} - Red coins: ${pickedRed.size}/${redCoins.length}`;
+                const totalPicked = pickedGreen.size + pickedRed.size;
+                const totalCoins = greenCoins.length + redCoins.length;
+                statusDiv.textContent = `Step ${step + 1} - Coins: ${totalPicked}/${totalCoins}`;
                 
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
@@ -558,7 +568,9 @@
             }
             
             drawGrid();
-            statusDiv.textContent = `Complete! Red coins collected: ${pickedRed.size}/${redCoins.length}`;
+            const totalPicked = pickedGreen.size + pickedRed.size;
+            const totalCoins = greenCoins.length + redCoins.length;
+            statusDiv.innerHTML = `<p>Coins collected: ${totalPicked}/${totalCoins}</p><p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
             animating = false;
             startBtn.disabled = false;
         }
