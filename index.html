@@ -95,6 +95,9 @@
         const statusDiv = document.getElementById('status');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
+        
+        // Store the original status text
+        const originalStatusHTML = statusDiv.innerHTML;
 
         // Grid definition
         const gridStr = `.g.r.
@@ -583,7 +586,7 @@
             pickedGreen.clear();
             pickedRed.clear();
             drawGrid();
-            statusDiv.textContent = optimalPolicy ? 'Ready to start!' : 'Click "Start" to compute policy and begin!';
+            statusDiv.innerHTML = originalStatusHTML;
             startBtn.disabled = false;
         }
 
