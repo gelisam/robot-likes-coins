@@ -497,6 +497,8 @@
             const maxSteps = 200;
             
             while (step < maxSteps && animating) {
+                const key = stateToString(robotPos, pickedGreen, pickedRed);
+                
                 // Pick up coins at current position
                 for (const coin of greenCoins) {
                     if (coin.r === robotPos.r && coin.c === robotPos.c) {
@@ -511,7 +513,6 @@
                 
                 drawGrid();
                 
-                const key = stateToString(robotPos, pickedGreen, pickedRed);
                 const move = optimalPolicy.get(key);
                 
                 console.log('Step', step, 'key:', key, 'move:', move);
