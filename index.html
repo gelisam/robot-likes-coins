@@ -139,8 +139,9 @@
 
         // Draw functions
         function drawBrickWall(x, y, size) {
-            const brickHeight = size / 3;
-            const brickWidth = size / 2;
+            const adjustedSize = size - 1; // adjust for stroke
+            const brickHeight = adjustedSize / 3;
+            const brickWidth = adjustedSize / 2;
             
             ctx.fillStyle = '#8B4513';
             ctx.fillRect(x, y, size, size);
@@ -150,11 +151,11 @@
             
             for (let row = 0; row < 3; row++) {
                 const offsetX = (row % 2) * (brickWidth / 2);
-                for (let col = 0; col < 3; col++) {
+                for (let col = 0; col < 2; col++) {
                     const bx = x + col * brickWidth + offsetX;
                     const by = y + row * brickHeight;
                     if (bx < x + size && by < y + size) {
-                        ctx.strokeRect(bx, by, Math.min(brickWidth, x + size - bx), brickHeight);
+                        ctx.strokeRect(bx+2, by+1, Math.min(brickWidth, x + size - bx - 3), brickHeight);
                     }
                 }
             }
