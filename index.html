@@ -655,7 +655,14 @@
             await animate();
         });
 
-        resetBtn.addEventListener('click', reset);
+        resetBtn.addEventListener('click', () => {
+            // Handle reset for the currently visible scene
+            if (!scene1.classList.contains('hidden')) {
+                reset();
+            } else if (!scene2.classList.contains('hidden')) {
+                resetScene2();
+            }
+        });
 
         // ============== SCENE 2: Episode System ==============
         
@@ -1249,11 +1256,17 @@
             }
             
             // Final status
-            const allPassed = scene2Episodes.every(e => e.completed);
+            const allCompleted = scene2Episodes.every(e => e.completed);
+            const allPassed = scene2Episodes.every(e => e.passed);
             const totalGreen = scene2Episodes.reduce((sum, e) => sum + e.pickedGreen.size, 0);
             const totalRed = scene2Episodes.reduce((sum, e) => sum + e.pickedRed.size, 0);
             
-            scene2Status.textContent = `All episodes complete! Green: ${totalGreen}, Red: ${totalRed}`;
+            if (allCompleted) {
+                scene2Status.textContent = `All episodes complete! Green: ${totalGreen}, Red: ${totalRed}`;
+            } else {
+                const completedCount = scene2Episodes.filter(e => e.completed).length;
+                scene2Status.textContent = `Stopped at episode ${completedCount}. Green: ${totalGreen}, Red: ${totalRed}`;
+            }
             
             scene2Animating = false;
             startBtn.disabled = false;
@@ -1282,7 +1295,6 @@
         });
 
         // Update start button to handle both scenes
-        const originalStartHandler = startBtn.onclick;
         startBtn.addEventListener('click', async () => {
             if (!scene1.classList.contains('hidden')) {
                 // Scene 1 logic (already handled above)
@@ -1295,13 +1307,6 @@
             }
             resetScene2();
             await animateScene2();
-        });
-
-        // Update reset button to handle both scenes
-        resetBtn.addEventListener('click', () => {
-            if (!scene2.classList.contains('hidden')) {
-                resetScene2();
-            }
         });
 
         // Initial draw
