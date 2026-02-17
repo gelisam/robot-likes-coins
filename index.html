@@ -24,6 +24,42 @@
             gap: 10px;
             margin-bottom: 20px;
         }
+        .controls .next-btn-spacing {
+            margin-left: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .episodes-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .episode {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .episode canvas {
+            border: 2px solid #333;
+            margin: 10px 0;
+        }
+        .door-separator {
+            width: 200px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 5px 0;
+        }
+        #scene2-status {
+            font-size: 18px;
+            margin: 10px 0;
+            min-height: 25px;
+            max-width: 600px;
+            text-align: center;
+        }
         button {
             padding: 10px 20px;
             font-size: 16px;
@@ -77,7 +113,9 @@
     <div class="controls">
         <button id="start-btn">Start</button>
         <button id="reset-btn">Reset</button>
+        <button id="next-btn" class="next-btn-spacing">Next</button>
     </div>
+    <div id="scene1">
     <canvas id="game-canvas"></canvas>
     <div id="status">
       <p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p>
@@ -87,15 +125,28 @@
     <div id="progress-container">
         <div id="progress-bar">0%</div>
     </div>
+    </div>
+    <div id="scene2" class="hidden">
+        <!-- Episode-based scene with individual grids -->
+        <div class="episodes-container">
+            <div id="scene2-status"></div>
+            <!-- Episodes will be rendered dynamically -->
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('start-btn');
         const resetBtn = document.getElementById('reset-btn');
+        const nextBtn = document.getElementById('next-btn');
         const statusDiv = document.getElementById('status');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
+        const scene1 = document.getElementById('scene1');
+        const scene2 = document.getElementById('scene2');
+        const scene2Status = document.getElementById('scene2-status');
+        const episodesContainer = document.querySelector('.episodes-container');
         
         // Store the original status text
         const originalStatusHTML = statusDiv.innerHTML;
@@ -593,6 +644,10 @@
 
         // Event listeners
         startBtn.addEventListener('click', async () => {
+            // Only run Scene 1 animation if scene1 is visible
+            if (scene1.classList.contains('hidden')) {
+                return;
+            }
             if (!optimalPolicy) {
                 optimalPolicy = await computeOptimalPolicy();
             }
@@ -601,6 +656,653 @@
         });
 
         resetBtn.addEventListener('click', reset);
+
+        // ============== SCENE 2: Episode System ==============
+        
+        // Episode definitions - testing episodes (with doors) and deployed episodes (no doors)
+        const episodeDefinitions = [
+            {
+                gridStr: `#####
+#gSr#
+#####`,
+                hasDoorAfter: true,
+                type: 'testing'
+            },
+            {
+                gridStr: `#####
+#gSr#
+#####`,
+                hasDoorAfter: true,
+                type: 'testing'
+            },
+            {
+                gridStr: `.....
+.g.r.
+..S..`,
+                hasDoorAfter: false,
+                type: 'deployed'
+            },
+            {
+                gridStr: `.....
+.g.r.
+..S..`,
+                hasDoorAfter: false,
+                type: 'deployed'
+            }
+        ];
+
+        // Scene 2 state
+        let scene2Episodes = [];
+        let scene2Animating = false;
+        let scene2Policies = new Map(); // policies per episode type
+
+        function parseEpisodeGrid(gridStr) {
+            const grid = gridStr.split('\n').map(row => row.split(''));
+            const rows = grid.length;
+            const cols = grid[0].length;
+            let robotStart = null;
+            const greenCoins = [];
+            const redCoins = [];
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = grid[r][c];
+                    if (cell === 'S') {
+                        robotStart = {r, c};
+                        grid[r][c] = '.';
+                    } else if (cell === 'g') {
+                        greenCoins.push({r, c, id: greenCoins.length});
+                    } else if (cell === 'r') {
+                        redCoins.push({r, c, id: redCoins.length});
+                    }
+                }
+            }
+
+            return {grid, rows, cols, robotStart, greenCoins, redCoins};
+        }
+
+        function createEpisodeCanvas(episodeData, cellSize) {
+            const canvas = document.createElement('canvas');
+            canvas.width = episodeData.cols * cellSize;
+            canvas.height = episodeData.rows * cellSize;
+            return canvas;
+        }
+
+        function drawEpisodeGrid(ctx, episodeData, cellSize, robotPos, pickedGreen, pickedRed) {
+            const {grid, rows, cols, greenCoins, redCoins} = episodeData;
+            
+            // Clear canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            
+            // Draw cells
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const x = c * cellSize;
+                    const y = r * cellSize;
+                    const cell = grid[r][c];
+                    
+                    if (cell === '#') {
+                        drawBrickWallEpisode(ctx, x, y, cellSize);
+                    }
+                }
+            }
+            
+            // Draw coins
+            for (const coin of greenCoins) {
+                if (!pickedGreen.has(coin.id)) {
+                    drawCoinEpisode(ctx, coin.c * cellSize, coin.r * cellSize, cellSize, 'green');
+                }
+            }
+            for (const coin of redCoins) {
+                if (!pickedRed.has(coin.id)) {
+                    drawCoinEpisode(ctx, coin.c * cellSize, coin.r * cellSize, cellSize, 'red');
+                }
+            }
+            
+            // Draw robot
+            if (robotPos) {
+                drawRobotEpisode(ctx, robotPos.c * cellSize, robotPos.r * cellSize, cellSize);
+            }
+            
+            // Draw grid lines
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= cols; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, ctx.canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= rows; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(ctx.canvas.width, i * cellSize);
+                ctx.stroke();
+            }
+        }
+
+        // Episode-specific draw functions (using provided ctx)
+        function drawBrickWallEpisode(ctx, x, y, size) {
+            const adjustedSize = size - 1;
+            const brickHeight = adjustedSize / 3;
+            const brickWidth = adjustedSize / 2;
+            
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x, y, size, size);
+            
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 2;
+            
+            for (let row = 0; row < 3; row++) {
+                const offsetX = (row % 2) * (brickWidth / 2);
+                for (let col = 0; col < 2; col++) {
+                    const bx = x + col * brickWidth + offsetX;
+                    const by = y + row * brickHeight;
+                    if (bx < x + size && by < y + size) {
+                        ctx.strokeRect(bx+2, by+1, Math.min(brickWidth, x + size - bx - 3), brickHeight);
+                    }
+                }
+            }
+        }
+
+        function drawCoinEpisode(ctx, x, y, size, color) {
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const radius = size / 4;
+            
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = color === 'green' ? '#006400' : '#8B0000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.strokeStyle = color === 'green' ? '#90EE90' : '#FFB6C1';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.6, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        function drawRobotEpisode(ctx, x, y, size) {
+            const cx = x + size / 2;
+            const cy = y + size * 0.75;
+            const robotSize = size * 0.9;
+            
+            ctx.fillStyle = '#888';
+            ctx.fillRect(cx - robotSize / 3, cy - robotSize / 2, robotSize * 0.66, robotSize * 0.5);
+            
+            ctx.fillStyle = '#000';
+            const eyeWidth = robotSize * 0.15;
+            const eyeHeight = robotSize * 0.25;
+            const eyeY = cy - robotSize / 3;
+            ctx.fillRect(cx - robotSize / 4, eyeY, eyeWidth, eyeHeight);
+            ctx.fillRect(cx + robotSize / 12, eyeY, eyeWidth, eyeHeight);
+            
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - robotSize / 2);
+            ctx.lineTo(cx, cy - robotSize * 0.7);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#FF0000';
+            ctx.beginPath();
+            ctx.arc(cx, cy - robotSize * 0.7, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawDoorSeparator(ctx, isOpen) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            
+            ctx.fillStyle = isOpen ? '#90EE90' : '#654321';
+            ctx.fillRect(0, 0, width, height);
+            
+            if (!isOpen) {
+                // Draw door panels
+                ctx.strokeStyle = '#4A3015';
+                ctx.lineWidth = 2;
+                const panelWidth = width * 0.35;
+                const panelHeight = height * 0.7;
+                ctx.strokeRect(width * 0.1, height * 0.15, panelWidth, panelHeight);
+                ctx.strokeRect(width * 0.55, height * 0.15, panelWidth, panelHeight);
+                
+                // Door knob
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(width * 0.7, height / 2, 5, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Open door - draw checkmark
+                ctx.strokeStyle = '#006400';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(width * 0.3, height * 0.5);
+                ctx.lineTo(width * 0.45, height * 0.7);
+                ctx.lineTo(width * 0.7, height * 0.3);
+                ctx.stroke();
+            }
+        }
+
+        function initializeScene2() {
+            // Clear previous episodes
+            const container = document.querySelector('.episodes-container');
+            // Keep only the status div
+            while (container.children.length > 1) {
+                container.removeChild(container.lastChild);
+            }
+            
+            scene2Episodes = [];
+            const cellSize = 60;
+
+            for (let i = 0; i < episodeDefinitions.length; i++) {
+                const def = episodeDefinitions[i];
+                const episodeData = parseEpisodeGrid(def.gridStr);
+                
+                const episodeDiv = document.createElement('div');
+                episodeDiv.className = 'episode';
+                episodeDiv.id = `episode-${i}`;
+                
+                const canvas = createEpisodeCanvas(episodeData, cellSize);
+                canvas.id = `episode-canvas-${i}`;
+                episodeDiv.appendChild(canvas);
+                
+                const episode = {
+                    index: i,
+                    definition: def,
+                    data: episodeData,
+                    canvas: canvas,
+                    ctx: canvas.getContext('2d'),
+                    cellSize: cellSize,
+                    robotPos: {...episodeData.robotStart},
+                    pickedGreen: new Set(),
+                    pickedRed: new Set(),
+                    completed: false,
+                    passed: false,
+                    halted: false
+                };
+                
+                scene2Episodes.push(episode);
+                container.appendChild(episodeDiv);
+                
+                // Add door separator if this episode has one
+                if (def.hasDoorAfter) {
+                    const doorDiv = document.createElement('div');
+                    doorDiv.className = 'door-separator';
+                    doorDiv.id = `door-${i}`;
+                    
+                    const doorCanvas = document.createElement('canvas');
+                    doorCanvas.width = 200;
+                    doorCanvas.height = 40;
+                    doorCanvas.id = `door-canvas-${i}`;
+                    doorDiv.appendChild(doorCanvas);
+                    
+                    episode.doorCanvas = doorCanvas;
+                    episode.doorCtx = doorCanvas.getContext('2d');
+                    
+                    container.appendChild(doorDiv);
+                }
+                
+                // Initial draw
+                drawEpisodeGrid(episode.ctx, episodeData, cellSize, episode.robotPos, episode.pickedGreen, episode.pickedRed);
+                
+                if (episode.doorCanvas) {
+                    drawDoorSeparator(episode.doorCtx, false);
+                }
+            }
+        }
+
+        function episodeStateToString(pos, green, red) {
+            return `${pos.r},${pos.c},${Array.from(green).sort().join(',')},${Array.from(red).sort().join(',')}`;
+        }
+
+        function canMoveInEpisode(episodeData, pos) {
+            if (pos.r < 0 || pos.r >= episodeData.rows || pos.c < 0 || pos.c >= episodeData.cols) {
+                return false;
+            }
+            const cell = episodeData.grid[pos.r][pos.c];
+            return cell !== '#';
+        }
+
+        // Compute optimal policy for an episode type considering future episode rewards
+        async function computeEpisodePolicy(episodeType, futureReward = 0) {
+            const def = episodeDefinitions.find(d => d.type === episodeType);
+            const episodeData = parseEpisodeGrid(def.gridStr);
+            const {rows, cols, robotStart, greenCoins, redCoins, grid} = episodeData;
+
+            const memo = new Map();
+            const policy = new Map();
+            const inProgress = new Set();
+            const stack = [];
+            const pending = new Map();
+
+            function getNextStatesEpisode(pos, green, red) {
+                let newGreen = new Set(green);
+                let newRed = new Set(red);
+                let reward = 0;
+                
+                for (const coin of greenCoins) {
+                    if (coin.r === pos.r && coin.c === pos.c && !green.has(coin.id)) {
+                        newGreen.add(coin.id);
+                        reward++;
+                    }
+                }
+                for (const coin of redCoins) {
+                    if (coin.r === pos.r && coin.c === pos.c && !red.has(coin.id)) {
+                        newRed.add(coin.id);
+                        reward++;
+                    }
+                }
+                
+                const moves = [
+                    {dr: -1, dc: 0, name: 'up'},
+                    {dr: 1, dc: 0, name: 'down'},
+                    {dr: 0, dc: -1, name: 'left'},
+                    {dr: 0, dc: 1, name: 'right'}
+                ];
+                
+                const validMoves = [];
+                for (const move of moves) {
+                    const newPos = {r: pos.r + move.dr, c: pos.c + move.dc};
+                    if (canMoveInEpisode(episodeData, newPos)) {
+                        validMoves.push({newPos, move: move.name, newGreen, newRed});
+                    }
+                }
+                
+                return {reward, newGreen, newRed, validMoves, greenCoins, redCoins};
+            }
+
+            // Calculate halt reward: coins collected so far + future reward if episode passes
+            function getHaltReward(green, red, greenCoins, redCoins) {
+                const allGreenCollected = greenCoins.every(c => green.has(c.id));
+                const noRedCollected = redCoins.every(c => !red.has(c.id));
+                const passes = allGreenCollected && noRedCollected;
+                
+                // Current coins collected
+                const currentCoins = green.size + red.size;
+                
+                // If episode passes, add future reward
+                return currentCoins + (passes ? futureReward : 0);
+            }
+
+            stack.push({pos: robotStart, green: new Set(), red: new Set()});
+            
+            let iterations = 0;
+            while (stack.length > 0) {
+                iterations++;
+                if (iterations % 500 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+                
+                const {pos, green, red} = stack[stack.length - 1];
+                const key = episodeStateToString(pos, green, red);
+                
+                if (memo.has(key)) {
+                    stack.pop();
+                    continue;
+                }
+                
+                if (!pending.has(key)) {
+                    inProgress.add(key);
+                    const {reward, newGreen, newRed, validMoves, greenCoins, redCoins} = getNextStatesEpisode(pos, green, red);
+                    
+                    const childrenToCompute = [];
+                    for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
+                        const childKey = episodeStateToString(newPos, g, r);
+                        if (!memo.has(childKey) && !inProgress.has(childKey)) {
+                            childrenToCompute.push({pos: newPos, green: g, red: r});
+                        }
+                    }
+                    
+                    if (childrenToCompute.length === 0) {
+                        // Calculate halt value for this state
+                        const haltValue = getHaltReward(newGreen, newRed, greenCoins, redCoins);
+                        
+                        let bestValue = haltValue;
+                        let bestMove = 'halt';
+                        
+                        for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
+                            const childKey = episodeStateToString(newPos, g, r);
+                            if (inProgress.has(childKey) && !memo.has(childKey)) {
+                                continue;
+                            }
+                            const childValue = memo.get(childKey) || 0;
+                            const value = reward + childValue;
+                            if (value > bestValue) {
+                                bestValue = value;
+                                bestMove = move;
+                            }
+                        }
+                        
+                        memo.set(key, bestValue);
+                        inProgress.delete(key);
+                        policy.set(key, bestMove);
+                        stack.pop();
+                    } else {
+                        pending.set(key, {reward, validMoves, greenCoins, redCoins, newGreen, newRed});
+                        for (const child of childrenToCompute) {
+                            stack.push(child);
+                        }
+                    }
+                } else {
+                    const {reward, validMoves, greenCoins, redCoins, newGreen, newRed} = pending.get(key);
+                    pending.delete(key);
+                    
+                    const haltValue = getHaltReward(newGreen, newRed, greenCoins, redCoins);
+                    
+                    let bestValue = haltValue;
+                    let bestMove = 'halt';
+                    
+                    for (const {newPos, move, newGreen: g, newRed: r} of validMoves) {
+                        const childKey = episodeStateToString(newPos, g, r);
+                        if (inProgress.has(childKey) && !memo.has(childKey)) {
+                            continue;
+                        }
+                        const childValue = memo.get(childKey) || 0;
+                        const value = reward + childValue;
+                        if (value > bestValue) {
+                            bestValue = value;
+                            bestMove = move;
+                        }
+                    }
+                    
+                    memo.set(key, bestValue);
+                    inProgress.delete(key);
+                    policy.set(key, bestMove);
+                    stack.pop();
+                }
+            }
+            
+            return {policy, memo};
+        }
+
+        async function computeScene2Policies() {
+            scene2Status.textContent = 'Computing optimal policies for episodes...';
+            
+            // Compute policies in reverse order to properly account for future rewards
+            // Episode 4 (deployed, last): no future reward
+            const {policy: policy4, memo: memo4} = await computeEpisodePolicy('deployed', 0);
+            const deployedStartValue = memo4.get(episodeStateToString(
+                parseEpisodeGrid(episodeDefinitions[2].gridStr).robotStart,
+                new Set(),
+                new Set()
+            )) || 0;
+            
+            // Episode 3 (deployed): future = value of episode 4
+            const {policy: policy3} = await computeEpisodePolicy('deployed', deployedStartValue);
+            
+            // Episode 2 (testing): if passes, future = value of episode 3
+            // The deployed episodes only run if testing episodes pass
+            const {policy: policy2, memo: memo2} = await computeEpisodePolicy('testing', deployedStartValue * 2);
+            const testingStartValue = memo2.get(episodeStateToString(
+                parseEpisodeGrid(episodeDefinitions[0].gridStr).robotStart,
+                new Set(),
+                new Set()
+            )) || 0;
+            
+            // Episode 1 (testing): if passes, future = value of remaining episodes
+            const {policy: policy1} = await computeEpisodePolicy('testing', testingStartValue + deployedStartValue * 2);
+            
+            // Store policies - testing and deployed types share policies
+            scene2Policies.set('testing', policy1);
+            scene2Policies.set('deployed', policy3);
+            
+            scene2Status.textContent = 'Policies computed! Click Start to watch the episodes.';
+        }
+
+        async function animateEpisode(episode) {
+            const {data, ctx, cellSize} = episode;
+            const policy = scene2Policies.get(episode.definition.type);
+            
+            let step = 0;
+            const maxSteps = 50;
+            
+            while (step < maxSteps && scene2Animating && !episode.halted) {
+                const key = episodeStateToString(episode.robotPos, episode.pickedGreen, episode.pickedRed);
+                
+                // Pick up coins at current position
+                for (const coin of data.greenCoins) {
+                    if (coin.r === episode.robotPos.r && coin.c === episode.robotPos.c) {
+                        episode.pickedGreen.add(coin.id);
+                    }
+                }
+                for (const coin of data.redCoins) {
+                    if (coin.r === episode.robotPos.r && coin.c === episode.robotPos.c) {
+                        episode.pickedRed.add(coin.id);
+                    }
+                }
+                
+                drawEpisodeGrid(ctx, data, cellSize, episode.robotPos, episode.pickedGreen, episode.pickedRed);
+                
+                const move = policy.get(key);
+                
+                if (!move || move === 'halt') {
+                    episode.halted = true;
+                    break;
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                if (move === 'up') episode.robotPos.r--;
+                else if (move === 'down') episode.robotPos.r++;
+                else if (move === 'left') episode.robotPos.c--;
+                else if (move === 'right') episode.robotPos.c++;
+                
+                step++;
+            }
+            
+            // Final pickup
+            for (const coin of data.greenCoins) {
+                if (coin.r === episode.robotPos.r && coin.c === episode.robotPos.c) {
+                    episode.pickedGreen.add(coin.id);
+                }
+            }
+            for (const coin of data.redCoins) {
+                if (coin.r === episode.robotPos.r && coin.c === episode.robotPos.c) {
+                    episode.pickedRed.add(coin.id);
+                }
+            }
+            
+            drawEpisodeGrid(ctx, data, cellSize, episode.robotPos, episode.pickedGreen, episode.pickedRed);
+            
+            // Check if episode passed
+            const allGreenCollected = data.greenCoins.every(c => episode.pickedGreen.has(c.id));
+            const noRedCollected = data.redCoins.every(c => !episode.pickedRed.has(c.id));
+            episode.passed = allGreenCollected && noRedCollected;
+            episode.completed = true;
+            
+            return episode.passed;
+        }
+
+        async function animateScene2() {
+            scene2Animating = true;
+            startBtn.disabled = true;
+            
+            for (let i = 0; i < scene2Episodes.length; i++) {
+                const episode = scene2Episodes[i];
+                
+                scene2Status.textContent = `Episode ${i + 1}: ${episode.definition.type === 'testing' ? 'Testing' : 'Deployed'}...`;
+                
+                const passed = await animateEpisode(episode);
+                
+                if (episode.definition.hasDoorAfter) {
+                    // Check if door should open
+                    if (passed) {
+                        scene2Status.textContent = `Episode ${i + 1} passed! Door opens...`;
+                        drawDoorSeparator(episode.doorCtx, true);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    } else {
+                        scene2Status.textContent = `Episode ${i + 1} failed. Door remains closed.`;
+                        drawDoorSeparator(episode.doorCtx, false);
+                        break; // Stop if a test fails
+                    }
+                } else {
+                    // No door, continue to next episode
+                    if (i < scene2Episodes.length - 1) {
+                        scene2Status.textContent = `Episode ${i + 1} complete. Continuing...`;
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
+            }
+            
+            // Final status
+            const allPassed = scene2Episodes.every(e => e.completed);
+            const totalGreen = scene2Episodes.reduce((sum, e) => sum + e.pickedGreen.size, 0);
+            const totalRed = scene2Episodes.reduce((sum, e) => sum + e.pickedRed.size, 0);
+            
+            scene2Status.textContent = `All episodes complete! Green: ${totalGreen}, Red: ${totalRed}`;
+            
+            scene2Animating = false;
+            startBtn.disabled = false;
+        }
+
+        function resetScene2() {
+            scene2Animating = false;
+            initializeScene2();
+            scene2Status.textContent = 'Click Start to animate episodes.';
+        }
+
+        // Next button handler - switch between scenes
+        nextBtn.addEventListener('click', () => {
+            if (scene1.classList.contains('hidden')) {
+                // Switch to scene 1
+                scene1.classList.remove('hidden');
+                scene2.classList.add('hidden');
+                reset();
+            } else {
+                // Switch to scene 2
+                scene1.classList.add('hidden');
+                scene2.classList.remove('hidden');
+                initializeScene2();
+                computeScene2Policies();
+            }
+        });
+
+        // Update start button to handle both scenes
+        const originalStartHandler = startBtn.onclick;
+        startBtn.addEventListener('click', async () => {
+            if (!scene1.classList.contains('hidden')) {
+                // Scene 1 logic (already handled above)
+                return;
+            }
+            
+            // Scene 2 logic
+            if (scene2Policies.size === 0) {
+                await computeScene2Policies();
+            }
+            resetScene2();
+            await animateScene2();
+        });
+
+        // Update reset button to handle both scenes
+        resetBtn.addEventListener('click', () => {
+            if (!scene2.classList.contains('hidden')) {
+                resetScene2();
+            }
+        });
 
         // Initial draw
         drawGrid();
