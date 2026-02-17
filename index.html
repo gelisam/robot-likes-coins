@@ -80,7 +80,8 @@
     </div>
     <canvas id="game-canvas"></canvas>
     <div id="status">
-      <p>Suppose we want to train an AI to do good things (in this case, collect green coins) and avoid bad things (in this case, collect red coins). During testing (behind the closed doors), we monitor the AI and we don't allow it to proceed (we shut it down and retrain it) unless it does what we want. This is represented in the game by only opening the door if the robot collects the green coin and avoids the red coin. We do this for several training episodes (two doors in this simplified example).</p>
+      <p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p>
+      <p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed if the red coin is collected or if the green coin is not collected). We test several times, to make sure (two doors in this simplified example).</p>
       <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
     </div>
     <div id="progress-container">
@@ -545,7 +546,7 @@
                 // Update status
                 const totalPicked = pickedGreen.size + pickedRed.size;
                 const totalCoins = greenCoins.length + redCoins.length;
-                statusDiv.textContent = `Step ${step + 1} - Coins: ${totalPicked}/${totalCoins}`;
+                statusDiv.textContent = `Coins: ${totalPicked}`;
                 
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
@@ -573,7 +574,7 @@
             drawGrid();
             const totalPicked = pickedGreen.size + pickedRed.size;
             const totalCoins = greenCoins.length + redCoins.length;
-            statusDiv.innerHTML = `<p>Coins collected: ${totalPicked}/${totalCoins}</p><p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
+            statusDiv.innerHTML = `<p>Coins: ${totalPicked}</p><p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
             animating = false;
             startBtn.disabled = false;
         }
