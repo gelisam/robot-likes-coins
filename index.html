@@ -33,7 +33,20 @@
         .hidden {
             display: none !important;
         }
+        #scene-container {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
         #scene1 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #scene2 {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -147,6 +160,7 @@
         <button id="reset-btn">Reset</button>
         <button id="next-btn" class="next-btn-spacing">Next</button>
     </div>
+    <div id="scene-container">
     <div id="scene1">
     <canvas id="game-canvas"></canvas>
     <div id="status">
@@ -168,6 +182,7 @@
             <div class="carousel-gradient-left"></div>
             <div class="carousel-gradient-right"></div>
         </div>
+    </div>
     </div>
 
     <script src="bundle.js"></script>
