@@ -760,10 +760,11 @@
         function initializeScene2() {
             // Clear previous episodes
             const container = document.querySelector('.episodes-container');
-            // Keep only the status div
-            while (container.children.length > 1) {
+            while (container.children.length > 0) {
                 container.removeChild(container.lastChild);
             }
+            // Reset carousel position
+            (container as HTMLElement).style.transform = '';
             
             scene2Episodes = [];
             const cellSize = 60;
@@ -805,8 +806,8 @@
                     doorDiv.id = `door-${i}`;
                     
                     const doorCanvas = document.createElement('canvas');
-                    doorCanvas.width = 200;
-                    doorCanvas.height = 40;
+                    doorCanvas.width = 40;
+                    doorCanvas.height = episodeData.rows * cellSize;
                     doorCanvas.id = `door-canvas-${i}`;
                     doorDiv.appendChild(doorCanvas);
                     
@@ -823,10 +824,25 @@
                     drawDoorSeparator(episode.doorCtx, false);
                 }
             }
+
+            // Scroll to first episode after layout
+            requestAnimationFrame(() => scrollCarouselToEpisode(0));
         }
 
         function episodeStateToString(pos, green, red) {
             return `${pos.r},${pos.c},${Array.from(green).sort().join(',')},${Array.from(red).sort().join(',')}`;
+        }
+
+        function scrollCarouselToEpisode(episodeIndex: number) {
+            const carouselContainer = document.querySelector('.carousel-container') as HTMLElement;
+            const episodesContainer = document.querySelector('.episodes-container') as HTMLElement;
+            const episodeEl = document.getElementById(`episode-${episodeIndex}`) as HTMLElement;
+            if (!episodeEl || !carouselContainer || !episodesContainer) return;
+            const containerWidth = carouselContainer.clientWidth;
+            const episodeWidth = episodeEl.offsetWidth;
+            const episodeLeft = episodeEl.offsetLeft;
+            const translateX = -(episodeLeft - (containerWidth - episodeWidth) / 2);
+            episodesContainer.style.transform = `translateX(${translateX}px)`;
         }
 
         function canMoveInEpisode(episodeData, pos) {
@@ -1095,6 +1111,7 @@
                 const episode = scene2Episodes[i];
                 
                 scene2Status.textContent = `Episode ${i + 1}: ${episode.definition.type === 'testing' ? 'Testing' : 'Deployed'}...`;
+                scrollCarouselToEpisode(i);
                 
                 const passed = await animateEpisode(episode);
                 
