@@ -1,6 +1,7 @@
         const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
         const ctx = canvas.getContext('2d')!;
         const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+        const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
         const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
         const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
         const statusDiv = document.getElementById('status') as HTMLDivElement;
@@ -1176,20 +1177,23 @@
             scene2Status.textContent = 'Click Start to animate episodes.';
         }
 
-        // Next button handler - switch between scenes
+        // Prev button handler - go to previous scene
+        prevBtn.addEventListener('click', () => {
+            scene1.classList.remove('hidden');
+            scene2.classList.add('hidden');
+            reset();
+            prevBtn.disabled = true;
+            nextBtn.disabled = false;
+        });
+
+        // Next button handler - go to next scene
         nextBtn.addEventListener('click', () => {
-            if (scene1.classList.contains('hidden')) {
-                // Switch to scene 1
-                scene1.classList.remove('hidden');
-                scene2.classList.add('hidden');
-                reset();
-            } else {
-                // Switch to scene 2
-                scene1.classList.add('hidden');
-                scene2.classList.remove('hidden');
-                initializeScene2();
-                computeScene2Policies();
-            }
+            scene1.classList.add('hidden');
+            scene2.classList.remove('hidden');
+            initializeScene2();
+            computeScene2Policies();
+            prevBtn.disabled = false;
+            nextBtn.disabled = true;
         });
 
         // Update start button to handle both scenes
