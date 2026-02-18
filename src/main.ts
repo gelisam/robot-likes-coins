@@ -808,8 +808,8 @@
                     doorDiv.id = `door-${i}`;
                     
                     const doorCanvas = document.createElement('canvas');
-                    doorCanvas.width = episodeData.rows * cellSize;
-                    doorCanvas.height = episodeData.rows * cellSize;
+                    doorCanvas.width = cellSize;
+                    doorCanvas.height = cellSize;
                     doorCanvas.id = `door-canvas-${i}`;
                     doorDiv.appendChild(doorCanvas);
                     
