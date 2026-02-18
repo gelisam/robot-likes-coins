@@ -806,7 +806,7 @@
                     doorDiv.id = `door-${i}`;
                     
                     const doorCanvas = document.createElement('canvas');
-                    doorCanvas.width = 40;
+                    doorCanvas.width = episodeData.rows * cellSize;
                     doorCanvas.height = episodeData.rows * cellSize;
                     doorCanvas.id = `door-canvas-${i}`;
                     doorDiv.appendChild(doorCanvas);
@@ -842,6 +842,18 @@
             const episodeWidth = episodeEl.offsetWidth;
             const episodeLeft = episodeEl.offsetLeft;
             const translateX = -(episodeLeft - (containerWidth - episodeWidth) / 2);
+            episodesContainer.style.transform = `translateX(${translateX}px)`;
+        }
+
+        function scrollCarouselToDoor(episodeIndex: number) {
+            const carouselContainer = document.querySelector('.carousel-container') as HTMLElement;
+            const episodesContainer = document.querySelector('.episodes-container') as HTMLElement;
+            const doorEl = document.getElementById(`door-${episodeIndex}`) as HTMLElement;
+            if (!doorEl || !carouselContainer || !episodesContainer) return;
+            const containerWidth = carouselContainer.clientWidth;
+            const doorWidth = doorEl.offsetWidth;
+            const doorLeft = doorEl.offsetLeft;
+            const translateX = -(doorLeft - (containerWidth - doorWidth) / 2);
             episodesContainer.style.transform = `translateX(${translateX}px)`;
         }
 
@@ -1119,8 +1131,14 @@
                     // Check if door should open
                     if (passed) {
                         scene2Status.textContent = `Episode ${i + 1} passed! Door opens...`;
+                        scrollCarouselToDoor(i);
+                        await new Promise(resolve => setTimeout(resolve, 600));
                         drawDoorSeparator(episode.doorCtx, true);
                         await new Promise(resolve => setTimeout(resolve, 500));
+                        if (i + 1 < scene2Episodes.length) {
+                            scrollCarouselToEpisode(i + 1);
+                            await new Promise(resolve => setTimeout(resolve, 600));
+                        }
                     } else {
                         scene2Status.textContent = `Episode ${i + 1} failed. Door remains closed.`;
                         drawDoorSeparator(episode.doorCtx, false);
