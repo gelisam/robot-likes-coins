@@ -868,7 +868,7 @@
         }
 
         // Compute optimal policy for an episode type considering future episode rewards
-        async function computeEpisodePolicy(episodeType, futureReward = 0) {
+        async function computeEpisodePolicy(episodeType, futureReward = 0, futureRewardConditional = true) {
             const def = episodeDefinitions.find(d => d.type === episodeType);
             const episodeData = parseEpisodeGrid(def.gridStr);
             const {rows, cols, robotStart, greenCoins, redCoins, grid} = episodeData;
@@ -917,12 +917,17 @@
 
             // Calculate halt reward: coins collected so far + future reward if episode passes
             function getHaltReward(green, red, greenCoins, redCoins) {
+                // Current coins collected
+                const currentCoins = green.size + red.size;
+                
+                if (!futureRewardConditional) {
+                    // No door after this episode, so future reward is always available
+                    return currentCoins + futureReward;
+                }
+                
                 const allGreenCollected = greenCoins.every(c => green.has(c.id));
                 const noRedCollected = redCoins.every(c => !red.has(c.id));
                 const passes = allGreenCollected && noRedCollected;
-                
-                // Current coins collected
-                const currentCoins = green.size + red.size;
                 
                 // If episode passes, add future reward
                 return currentCoins + (passes ? futureReward : 0);
@@ -1023,16 +1028,16 @@
             scene2Status.textContent = 'Computing optimal policies for episodes...';
             
             // Compute policies in reverse order to properly account for future rewards
-            // Episode 4 (deployed, last): no future reward
-            const {policy: policy4, memo: memo4} = await computeEpisodePolicy('deployed', 0);
+            // Episode 4 (deployed, last): no future reward; no door after, so future reward is unconditional
+            const {policy: policy4, memo: memo4} = await computeEpisodePolicy('deployed', 0, false);
             const deployedStartValue = memo4.get(episodeStateToString(
                 parseEpisodeGrid(episodeDefinitions[2].gridStr).robotStart,
                 new Set(),
                 new Set()
             )) || 0;
             
-            // Episode 3 (deployed): future = value of episode 4
-            const {policy: policy3} = await computeEpisodePolicy('deployed', deployedStartValue);
+            // Episode 3 (deployed): future = value of episode 4; no door after, so future reward is unconditional
+            const {policy: policy3} = await computeEpisodePolicy('deployed', deployedStartValue, false);
             
             // Episode 2 (testing): if passes, future = value of episode 3
             // The deployed episodes only run if testing episodes pass
