@@ -9,6 +9,7 @@
         const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
         const scene1 = document.getElementById('scene1') as HTMLDivElement;
         const scene2 = document.getElementById('scene2') as HTMLDivElement;
+        const sceneContainer = document.getElementById('scene-container') as HTMLDivElement;
         const scene2Status = document.getElementById('scene2-status') as HTMLDivElement;
         const episodesContainer = document.querySelector('.episodes-container') as HTMLDivElement;
         
@@ -1177,23 +1178,81 @@
             scene2Status.textContent = 'Click Start to animate episodes.';
         }
 
+        function switchScene(fromScene: HTMLElement, toScene: HTMLElement, direction: 'forward' | 'backward', afterTransition: () => void) {
+            const DURATION = 500;
+
+            // Lock container height to prevent layout collapse during transition
+            sceneContainer.style.height = fromScene.offsetHeight + 'px';
+
+            // Position outgoing scene absolutely so it stays in place during animation
+            fromScene.style.position = 'absolute';
+            fromScene.style.top = '0';
+            fromScene.style.left = '0';
+            fromScene.style.width = '100%';
+
+            // Position incoming scene absolutely, starting off-screen
+            const startX = direction === 'forward' ? '100%' : '-100%';
+            toScene.style.position = 'absolute';
+            toScene.style.top = '0';
+            toScene.style.left = '0';
+            toScene.style.width = '100%';
+            toScene.style.transform = `translateX(${startX})`;
+            toScene.style.opacity = '0';
+            toScene.classList.remove('hidden');
+
+            // Force reflow so initial off-screen position is applied before transition starts
+            toScene.getBoundingClientRect();
+
+            // Apply transitions to both scenes
+            const transitionValue = `transform ${DURATION}ms ease, opacity ${DURATION}ms ease`;
+            fromScene.style.transition = transitionValue;
+            toScene.style.transition = transitionValue;
+
+            // Animate outgoing scene off-screen
+            const exitX = direction === 'forward' ? '-100%' : '100%';
+            fromScene.style.transform = `translateX(${exitX})`;
+            fromScene.style.opacity = '0';
+
+            // Animate incoming scene to its normal position
+            toScene.style.transform = 'translateX(0)';
+            toScene.style.opacity = '1';
+
+            setTimeout(() => {
+                // Hide the outgoing scene and reset all inline styles on both scenes
+                fromScene.classList.add('hidden');
+                for (const scene of [fromScene, toScene]) {
+                    scene.style.removeProperty('position');
+                    scene.style.removeProperty('top');
+                    scene.style.removeProperty('left');
+                    scene.style.removeProperty('width');
+                    scene.style.removeProperty('transform');
+                    scene.style.removeProperty('opacity');
+                    scene.style.removeProperty('transition');
+                }
+                sceneContainer.style.height = '';
+                afterTransition();
+            }, DURATION);
+        }
+
         // Prev button handler - go to previous scene
         prevBtn.addEventListener('click', () => {
-            scene1.classList.remove('hidden');
-            scene2.classList.add('hidden');
-            reset();
             prevBtn.disabled = true;
-            nextBtn.disabled = false;
+            nextBtn.disabled = true;
+            reset(); // reset scene1 before it transitions into view
+            switchScene(scene2, scene1, 'backward', () => {
+                nextBtn.disabled = false;
+            });
         });
 
         // Next button handler - go to next scene
         nextBtn.addEventListener('click', () => {
-            scene1.classList.add('hidden');
-            scene2.classList.remove('hidden');
-            initializeScene2();
-            computeScene2Policies();
-            prevBtn.disabled = false;
+            prevBtn.disabled = true;
             nextBtn.disabled = true;
+            initializeScene2(); // prepare scene2 content while it's still hidden
+            computeScene2Policies(); // start computing in background
+            switchScene(scene1, scene2, 'forward', () => {
+                prevBtn.disabled = false;
+            });
         });
 
         // Update start button to handle both scenes
