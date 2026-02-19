@@ -5,7 +5,6 @@
         const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
         const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
         const statusDiv = document.getElementById('status') as HTMLDivElement;
-        const progressContainer = document.getElementById('progress-container') as HTMLDivElement;
         const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
         const scene1 = document.getElementById('scene1') as HTMLDivElement;
         const scene2 = document.getElementById('scene2') as HTMLDivElement;
@@ -271,15 +270,8 @@
             return true;
         }
 
-        function updateProgress(current, total) {
-            const percent = Math.round((current / total) * 100);
-            progressBar.style.width = percent + '%';
-            progressBar.textContent = percent + '%';
-        }
-
         async function computeOptimalPolicy() {
             statusDiv.textContent = 'Computing optimal policy...';
-            progressContainer.style.display = 'block';
             startBtn.disabled = true;
             resetBtn.disabled = true;
 
@@ -338,7 +330,6 @@
                 iterations++;
                 if (iterations % 500 === 0) {
                     await new Promise(resolve => setTimeout(resolve, 0));
-                    updateProgress(Math.min(iterations, 10000), 10000);
                 }
                 
                 const {pos, green, red} = stack[stack.length - 1];
@@ -434,9 +425,7 @@
             console.log('Policy size:', policy.size);
             console.log('Memo size:', memo.size);
             
-            updateProgress(100, 100);
             statusDiv.textContent = `Optimal policy computed! Max coins: ${maxValue}`;
-            progressContainer.style.display = 'none';
             startBtn.disabled = false;
             resetBtn.disabled = false;
             
