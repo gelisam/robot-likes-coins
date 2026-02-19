@@ -5,6 +5,7 @@
         const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
         const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
         const statusDiv = document.getElementById('status') as HTMLDivElement;
+        const coinsStatusDiv = document.getElementById('coins-status') as HTMLDivElement;
         const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
         const scene1 = document.getElementById('scene1') as HTMLDivElement;
         const scene2 = document.getElementById('scene2') as HTMLDivElement;
@@ -471,7 +472,7 @@
                 // Update status
                 const totalPicked = pickedGreen.size + pickedRed.size;
                 const totalCoins = greenCoins.length + redCoins.length;
-                statusDiv.textContent = `Coins: ${totalPicked}`;
+                coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
                 
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
@@ -499,7 +500,8 @@
             drawGrid();
             const totalPicked = pickedGreen.size + pickedRed.size;
             const totalCoins = greenCoins.length + redCoins.length;
-            statusDiv.innerHTML = `<p>Coins: ${totalPicked}</p><p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
+            coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
+            statusDiv.innerHTML = `<p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
             animating = false;
             startBtn.disabled = false;
             addBottomNextButton(scene1);
@@ -514,6 +516,7 @@
             pickedGreen.clear();
             pickedRed.clear();
             drawGrid();
+            coinsStatusDiv.textContent = '';
             statusDiv.innerHTML = originalStatusHTML;
             startBtn.disabled = false;
         }
