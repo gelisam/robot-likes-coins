@@ -1217,9 +1217,9 @@
 
         function resetScene2() {
             scene2Animating = false;
-            startBtn.disabled = false;
             removeBottomNextButton(scene2);
             initializeScene2();
+            startBtn.disabled = false;
             scene2Status.textContent = 'Click Start to animate episodes.';
         }
 
