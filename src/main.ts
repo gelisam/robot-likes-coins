@@ -787,6 +787,8 @@
             while (container.children.length > 0) {
                 container.removeChild(container.lastChild);
             }
+            // Reset carousel position immediately to avoid layout issues
+            (container as HTMLElement).style.transform = 'translateX(0px)';
             
             scene2Episodes = [];
             const cellSize = 60;
@@ -847,8 +849,11 @@
                 }
             }
 
-            // Scroll to first episode after layout
-            requestAnimationFrame(() => scrollCarouselToEpisode(0));
+            // Scroll to first episode after layout is complete
+            // Double requestAnimationFrame ensures layout has been computed
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => scrollCarouselToEpisode(0));
+            });
         }
 
         function episodeStateToString(pos, green, red) {
@@ -1147,6 +1152,8 @@
             startBtn.disabled = true;
             
             for (let i = 0; i < scene2Episodes.length; i++) {
+                if (!scene2Animating) break; // Check if animation was stopped
+                
                 const episode = scene2Episodes[i];
                 
                 scene2Status.textContent = `Episode ${i + 1}: ${episode.definition.type === 'testing' ? 'Testing' : 'Deployed'}...`;
@@ -1154,14 +1161,18 @@
                 
                 const passed = await animateEpisode(episode);
                 
+                if (!scene2Animating) break; // Check again after async operation
+                
                 if (episode.definition.hasDoorAfter) {
                     // Check if door should open
                     if (passed) {
                         scene2Status.textContent = `Episode ${i + 1} passed! Door opens...`;
                         scrollCarouselToDoor(i);
                         await new Promise(resolve => setTimeout(resolve, 600));
+                        if (!scene2Animating) break;
                         drawDoorSeparator(episode.doorCtx, true);
                         await new Promise(resolve => setTimeout(resolve, 500));
+                        if (!scene2Animating) break;
                         if (i + 1 < scene2Episodes.length) {
                             scrollCarouselToEpisode(i + 1);
                             await new Promise(resolve => setTimeout(resolve, 600));
@@ -1180,7 +1191,13 @@
                 }
             }
             
-            // Final status
+            // Check if animation was interrupted by reset
+            if (!scene2Animating) {
+                // Animation was stopped, cleanup is handled by resetScene2
+                return;
+            }
+            
+            // Final status for completed animation
             const allCompleted = scene2Episodes.every(e => e.completed);
             const allPassed = scene2Episodes.every(e => e.passed);
             const totalGreen = scene2Episodes.reduce((sum, e) => sum + e.pickedGreen.size, 0);
@@ -1200,6 +1217,7 @@
 
         function resetScene2() {
             scene2Animating = false;
+            startBtn.disabled = false;
             removeBottomNextButton(scene2);
             initializeScene2();
             scene2Status.textContent = 'Click Start to animate episodes.';
