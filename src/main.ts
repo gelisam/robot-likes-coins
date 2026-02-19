@@ -10,6 +10,26 @@
         const scene1 = document.getElementById('scene1') as HTMLDivElement;
         const scene2 = document.getElementById('scene2') as HTMLDivElement;
         const sceneContainer = document.getElementById('scene-container') as HTMLDivElement;
+
+        // Ordered list of all scenes. Add new scenes here when adding more scenes.
+        const allScenes: HTMLElement[] = [scene1, scene2];
+
+        // Adds a Next button at the bottom of the given scene, unless it is the last scene.
+        function addBottomNextButton(scene: HTMLElement) {
+            const sceneIndex = allScenes.indexOf(scene);
+            if (sceneIndex < 0 || sceneIndex >= allScenes.length - 1) return;
+            const btn = document.createElement('button');
+            btn.textContent = 'Next';
+            btn.className = 'bottom-next-btn';
+            btn.addEventListener('click', () => nextBtn.click());
+            scene.appendChild(btn);
+        }
+
+        // Removes the Next button from the bottom of a scene, if present.
+        function removeBottomNextButton(scene: HTMLElement) {
+            const btn = scene.querySelector('.bottom-next-btn');
+            if (btn) btn.remove();
+        }
         const scene2Status = document.getElementById('scene2-status') as HTMLDivElement;
         const episodesContainer = document.querySelector('.episodes-container') as HTMLDivElement;
         
@@ -493,12 +513,14 @@
             statusDiv.innerHTML = `<p>Coins: ${totalPicked}</p><p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
             animating = false;
             startBtn.disabled = false;
+            addBottomNextButton(scene1);
         }
 
         function reset() {
             if (animating) {
                 animating = false;
             }
+            removeBottomNextButton(scene1);
             robotPos = {...robotStart};
             pickedGreen.clear();
             pickedRed.clear();
@@ -1170,10 +1192,12 @@
             
             scene2Animating = false;
             startBtn.disabled = false;
+            addBottomNextButton(scene2);
         }
 
         function resetScene2() {
             scene2Animating = false;
+            removeBottomNextButton(scene2);
             initializeScene2();
             scene2Status.textContent = 'Click Start to animate episodes.';
         }
