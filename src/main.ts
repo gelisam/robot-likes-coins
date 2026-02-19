@@ -588,7 +588,7 @@
         // Scene 2 state
         let scene2Episodes: any[] = [];
         let scene2Animating = false;
-        let scene2Policies: any = new Map(); // policies per episode type
+        let scene2Policies: any = new Map(); // policies per grid hash
 
         function parseEpisodeGrid(gridStr) {
             const grid = gridStr.split('\n').map(row => row.split(''));
@@ -857,6 +857,19 @@
             return `${pos.r},${pos.c},${Array.from(green).sort().join(',')},${Array.from(red).sort().join(',')}`;
         }
 
+        // Hash function to generate a key from grid contents
+        function hashGrid(gridStr: string, hasDoorAfter: boolean): string {
+            // Simple hash function that combines grid string and hasDoorAfter value
+            const content = gridStr + '|' + hasDoorAfter;
+            let hash = 0;
+            for (let i = 0; i < content.length; i++) {
+                const char = content.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            return 'grid_' + Math.abs(hash).toString(16);
+        }
+
         function scrollCarouselToEpisode(episodeIndex: number) {
             const carouselContainer = document.querySelector('.carousel-container') as HTMLElement;
             const episodesContainer = document.querySelector('.episodes-container') as HTMLElement;
@@ -889,9 +902,9 @@
             return cell !== '#';
         }
 
-        // Compute optimal policy for an episode type considering future episode rewards
-        async function computeEpisodePolicy(episodeType, futureReward = 0, futureRewardConditional = true) {
-            const def = episodeDefinitions.find(d => d.type === episodeType);
+        // Compute optimal policy for an episode grid hash considering future episode rewards
+        async function computeEpisodePolicy(gridHash, futureReward = 0, futureRewardConditional = true) {
+            const def = episodeDefinitions.find(d => hashGrid(d.gridStr, d.hasDoorAfter) === gridHash);
             const episodeData = parseEpisodeGrid(def.gridStr);
             const {rows, cols, robotStart, greenCoins, redCoins, grid} = episodeData;
 
@@ -1049,9 +1062,13 @@
         async function computeScene2Policies() {
             scene2Status.textContent = 'Computing optimal policies for episodes...';
             
+            // Compute grid hashes for each unique episode configuration
+            const testingGridHash = hashGrid(episodeDefinitions[0].gridStr, episodeDefinitions[0].hasDoorAfter);
+            const deployedGridHash = hashGrid(episodeDefinitions[2].gridStr, episodeDefinitions[2].hasDoorAfter);
+            
             // Compute policies in reverse order to properly account for future rewards
             // Episode 4 (deployed, last): no future reward; no door after, so future reward is unconditional
-            const {policy: policy4, memo: memo4} = await computeEpisodePolicy('deployed', 0, false);
+            const {policy: policy4, memo: memo4} = await computeEpisodePolicy(deployedGridHash, 0, false);
             const deployedStartValue = memo4.get(episodeStateToString(
                 parseEpisodeGrid(episodeDefinitions[2].gridStr).robotStart,
                 new Set(),
@@ -1059,11 +1076,11 @@
             )) || 0;
             
             // Episode 3 (deployed): future = value of episode 4; no door after, so future reward is unconditional
-            const {policy: policy3} = await computeEpisodePolicy('deployed', deployedStartValue, false);
+            const {policy: policy3} = await computeEpisodePolicy(deployedGridHash, deployedStartValue, false);
             
             // Episode 2 (testing): if passes, future = value of episode 3
             // The deployed episodes only run if testing episodes pass
-            const {policy: policy2, memo: memo2} = await computeEpisodePolicy('testing', deployedStartValue * 2);
+            const {policy: policy2, memo: memo2} = await computeEpisodePolicy(testingGridHash, deployedStartValue * 2);
             const testingStartValue = memo2.get(episodeStateToString(
                 parseEpisodeGrid(episodeDefinitions[0].gridStr).robotStart,
                 new Set(),
@@ -1071,18 +1088,19 @@
             )) || 0;
             
             // Episode 1 (testing): if passes, future = value of remaining episodes
-            const {policy: policy1} = await computeEpisodePolicy('testing', testingStartValue + deployedStartValue * 2);
+            const {policy: policy1} = await computeEpisodePolicy(testingGridHash, testingStartValue + deployedStartValue * 2);
             
-            // Store policies - testing and deployed types share policies
-            scene2Policies.set('testing', policy1);
-            scene2Policies.set('deployed', policy3);
+            // Store policies using grid hash as key
+            scene2Policies.set(testingGridHash, policy1);
+            scene2Policies.set(deployedGridHash, policy3);
             
             scene2Status.textContent = 'Policies computed! Click Start to watch the episodes.';
         }
 
         async function animateEpisode(episode) {
             const {data, ctx, cellSize} = episode;
-            const policy = scene2Policies.get(episode.definition.type);
+            const gridHash = hashGrid(episode.definition.gridStr, episode.definition.hasDoorAfter);
+            const policy = scene2Policies.get(gridHash);
             
             let step = 0;
             const maxSteps = 50;
