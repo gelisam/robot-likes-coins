@@ -859,8 +859,8 @@
 
         // Generate a unique key from grid contents
         function getGridKey(gridStr: string, hasDoorAfter: boolean): string {
-            // Use grid string and door flag as a direct key to avoid hash collisions
-            return gridStr + '|hasDoor:' + hasDoorAfter;
+            // Use grid string as the key
+            return gridStr;
         }
 
         function scrollCarouselToEpisode(episodeIndex: number) {
