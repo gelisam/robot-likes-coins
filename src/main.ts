@@ -6,7 +6,6 @@
         const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
         const statusDiv = document.getElementById('status') as HTMLDivElement;
         const coinsStatusDiv = document.getElementById('coins-status') as HTMLDivElement;
-        const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
         const scene1 = document.getElementById('scene1') as HTMLDivElement;
         const scene2 = document.getElementById('scene2') as HTMLDivElement;
         const sceneContainer = document.getElementById('scene-container') as HTMLDivElement;

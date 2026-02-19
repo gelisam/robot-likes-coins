@@ -120,27 +120,6 @@
         button:hover:not(:disabled) {
             background: #45a049;
         }
-        #progress-container {
-            width: 400px;
-            max-width: 90vw;
-            height: 30px;
-            background: #f0f0f0;
-            border-radius: 15px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            display: none;
-        }
-        #progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #8BC34A);
-            width: 0%;
-            transition: width 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-        }
         #coins-status {
             font-size: 18px;
             margin-bottom: 10px;
@@ -177,9 +156,6 @@
                 <p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p>
                 <p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed if the red coin is collected or if the green coin is not collected). We test several times, to make sure (two doors in this simplified example).</p>
                 <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
-            </div>
-            <div id="progress-container">
-                <div id="progress-bar">0%</div>
             </div>
         </div>
         <div id="scene2" class="hidden">
