@@ -1292,8 +1292,8 @@
             prevBtn.disabled = true;
             nextBtn.disabled = true;
             reset(); // reset scene1 before it transitions into view
-            resetScene2(); // reset scene2 so its animation doesn't keep running in the background
             switchScene(scene2, scene1, 'backward', () => {
+                resetScene2(); // reset scene2 after it has moved out of view
                 nextBtn.disabled = false;
             });
         });
@@ -1302,10 +1302,10 @@
         nextBtn.addEventListener('click', () => {
             prevBtn.disabled = true;
             nextBtn.disabled = true;
-            reset(); // reset scene1 so its animation doesn't keep running in the background
             resetScene2(); // prepare scene2 content while it's still hidden
             computeScene2Policies(); // start computing in background
             switchScene(scene1, scene2, 'forward', () => {
+                reset(); // reset scene1 after it has moved out of view
                 prevBtn.disabled = false;
             });
         });
