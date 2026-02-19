@@ -858,7 +858,7 @@
         }
 
         // Generate a unique key from grid contents
-        function getGridKey(gridStr: string, hasDoorAfter: boolean): string {
+        function getGridKey(gridStr: string): string {
             // Use grid string as the key
             return gridStr;
         }
@@ -897,7 +897,7 @@
 
         // Compute optimal policy for an episode grid key considering future episode rewards
         async function computeEpisodePolicy(gridKey, futureReward = 0, futureRewardConditional = true) {
-            const def = episodeDefinitions.find(d => getGridKey(d.gridStr, d.hasDoorAfter) === gridKey);
+            const def = episodeDefinitions.find(d => getGridKey(d.gridStr) === gridKey);
             const episodeData = parseEpisodeGrid(def.gridStr);
             const {rows, cols, robotStart, greenCoins, redCoins, grid} = episodeData;
 
@@ -1056,8 +1056,8 @@
             scene2Status.textContent = 'Computing optimal policies for episodes...';
             
             // Compute grid keys for each unique episode configuration
-            const testingGridKey = getGridKey(episodeDefinitions[0].gridStr, episodeDefinitions[0].hasDoorAfter);
-            const deployedGridKey = getGridKey(episodeDefinitions[2].gridStr, episodeDefinitions[2].hasDoorAfter);
+            const testingGridKey = getGridKey(episodeDefinitions[0].gridStr);
+            const deployedGridKey = getGridKey(episodeDefinitions[2].gridStr);
             
             // Compute policies in reverse order to properly account for future rewards
             // Episode 4 (deployed, last): no future reward; no door after, so future reward is unconditional
@@ -1092,7 +1092,7 @@
 
         async function animateEpisode(episode) {
             const {data, ctx, cellSize} = episode;
-            const gridKey = getGridKey(episode.definition.gridStr, episode.definition.hasDoorAfter);
+            const gridKey = getGridKey(episode.definition.gridStr);
             const policy = scene2Policies.get(gridKey);
             
             let step = 0;
