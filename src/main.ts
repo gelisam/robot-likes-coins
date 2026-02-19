@@ -503,7 +503,6 @@
             coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
             statusDiv.innerHTML = `<p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
             animating = false;
-            startBtn.disabled = false;
             addBottomNextButton(scene1);
         }
 
@@ -1220,7 +1219,6 @@
             }
             
             scene2Animating = false;
-            startBtn.disabled = false;
             addBottomNextButton(scene2);
         }
 
