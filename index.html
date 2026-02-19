@@ -99,10 +99,8 @@
         }
         #scene2-status {
             font-size: 18px;
-            margin: 10px 0;
+            margin-bottom: 10px;
             min-height: 25px;
-            max-width: 600px;
-            text-align: center;
         }
         button {
             padding: 10px 20px;
@@ -154,19 +152,23 @@
             <div id="coins-status"></div>
             <div id="status">
                 <p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p>
-                <p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed if the red coin is collected or if the green coin is not collected). We test several times, to make sure (two doors in this simplified example).</p>
+                <p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed until the green coin is collected, and closing if the red coin is collected). We test several times, to make sure (two doors in this simplified example).</p>
                 <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
             </div>
         </div>
         <div id="scene2" class="hidden">
             <!-- Episode-based scene with individual grids -->
-            <div id="scene2-status"></div>
             <div class="carousel-container">
                 <div class="episodes-container">
                     <!-- Episodes will be rendered dynamically -->
                 </div>
                 <div class="carousel-gradient-left"></div>
                 <div class="carousel-gradient-right"></div>
+            </div>
+            <div id="scene2-status" class="status">
+                <p>One reason why the robot was able to collect all the coins was that it ran for a long time, and thus had the opportunity to choose one course of action at the beginning of its runtime (avoiding the red coins) and a different course of action (collecting the red coins) later on. In this scenario, we attempt to resolve the issue by only running the robot for a short period of time called an <i>episode</i>.</p>
+                <p>The robot's behaviour is deterministic, meaning that given the same input twice, it will behave the same twice. We will check whether the robot behaves well in a test episode, then test again in an identical episode in order to make sure that the robot does behave deterministically. If the robot behaves well both times, we trust that it behaves as desired, so we deploy it in the real world. Critically, in the real world, we also run the robot in short identical episodes, so we expect the robot to continue to behave well.</p>
+                <p>Do you think it will behave this time?</p>
             </div>
         </div>
     </div>

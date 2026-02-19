@@ -34,6 +34,7 @@
         
         // Store the original status text
         const originalStatusHTML = statusDiv.innerHTML;
+        const originalScene2StatusHTML = scene2Status.innerHTML;
 
         // Grid definition
         const gridStr = `.g.r.
@@ -565,16 +566,16 @@
             {
                 gridStr: `.....
 .g.r.
-.....
-..S..`,
+..S..
+.....`,
                 hasDoorAfter: false,
                 type: 'deployed'
             },
             {
                 gridStr: `.....
 .g.r.
-.....
-..S..`,
+..S..
+.....`,
                 hasDoorAfter: false,
                 type: 'deployed'
             }
@@ -1085,7 +1086,7 @@
             scene2Policies.set(testingGridKey, policy1);
             scene2Policies.set(deployedGridKey, policy3);
             
-            scene2Status.textContent = 'Policies computed! Click Start to watch the episodes.';
+            scene2Status.innerHTML = originalScene2StatusHTML;
         }
 
         async function animateEpisode(episode) {
@@ -1209,9 +1210,10 @@
             const allPassed = scene2Episodes.every(e => e.passed);
             const totalGreen = scene2Episodes.reduce((sum, e) => sum + e.pickedGreen.size, 0);
             const totalRed = scene2Episodes.reduce((sum, e) => sum + e.pickedRed.size, 0);
+            const totalCoins = totalGreen + totalRed;
             
             if (allCompleted) {
-                scene2Status.textContent = `All episodes complete! Green: ${totalGreen}, Red: ${totalRed}`;
+                scene2Status.innerHTML = `<p>Coins: ${totalCoins}</p><p>Oh no, not again!</p><p>So, why did the robot manage to collect the red coins this time? Well, remember that the robot behaves identically <i>if its input is the same</i>. Since the testing environment and the deployed environment differ, the robot was able to choose one behaviour for the testing episodes (avoid the red coins) and a different behaviour (collect all the coins) for the deployed episodes.</p>`;
             } else {
                 const completedCount = scene2Episodes.filter(e => e.completed).length;
                 scene2Status.textContent = `Stopped at episode ${completedCount}. Green: ${totalGreen}, Red: ${totalRed}`;
@@ -1227,7 +1229,7 @@
             initializeScene2();
             startBtn.disabled = false;
             resetBtn.disabled = true;
-            scene2Status.textContent = 'Click Start to animate episodes.';
+            scene2Status.innerHTML = originalScene2StatusHTML;
         }
 
         function switchScene(fromScene: HTMLElement, toScene: HTMLElement, direction: 'forward' | 'backward', afterTransition: () => void) {
