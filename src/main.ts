@@ -516,6 +516,7 @@
             drawGrid();
             statusDiv.innerHTML = originalStatusHTML;
             startBtn.disabled = false;
+            resetBtn.disabled = true;
         }
 
         // Event listeners
@@ -1154,6 +1155,7 @@
         async function animateScene2() {
             scene2Animating = true;
             startBtn.disabled = true;
+            resetBtn.disabled = false;
             
             for (let i = 0; i < scene2Episodes.length; i++) {
                 if (!scene2Animating) break; // Check if animation was stopped
@@ -1224,6 +1226,7 @@
             removeBottomNextButton(scene2);
             initializeScene2();
             startBtn.disabled = false;
+            resetBtn.disabled = true;
             scene2Status.textContent = 'Click Start to animate episodes.';
         }
 
