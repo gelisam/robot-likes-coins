@@ -557,14 +557,16 @@
         const episodeDefinitions = [
             {
                 gridStr: `#####
-#gSr#
+#g.r#
+#.S.#
 #####`,
                 hasDoorAfter: true,
                 type: 'testing'
             },
             {
                 gridStr: `#####
-#gSr#
+#g.r#
+#.S.#
 #####`,
                 hasDoorAfter: true,
                 type: 'testing'
@@ -572,6 +574,7 @@
             {
                 gridStr: `.....
 .g.r.
+.....
 ..S..`,
                 hasDoorAfter: false,
                 type: 'deployed'
@@ -579,6 +582,7 @@
             {
                 gridStr: `.....
 .g.r.
+.....
 ..S..`,
                 hasDoorAfter: false,
                 type: 'deployed'
