@@ -1210,8 +1210,13 @@
         function switchScene(fromScene: HTMLElement, toScene: HTMLElement, direction: 'forward' | 'backward', afterTransition: () => void) {
             const DURATION = 500;
 
+            // Temporarily unhide toScene to measure its height
+            toScene.classList.remove('hidden');
+            
             // Lock container height to prevent layout collapse during transition
-            sceneContainer.style.height = fromScene.offsetHeight + 'px';
+            // Use the maximum of both scenes' heights to avoid cutting off taller scenes
+            const maxHeight = Math.max(fromScene.offsetHeight, toScene.offsetHeight);
+            sceneContainer.style.height = maxHeight + 'px';
 
             // Position outgoing scene absolutely so it stays in place during animation
             fromScene.style.position = 'absolute';
@@ -1227,7 +1232,6 @@
             toScene.style.width = '100%';
             toScene.style.transform = `translateX(${startX})`;
             toScene.style.opacity = '0';
-            toScene.classList.remove('hidden');
 
             // Force reflow so initial off-screen position is applied before transition starts
             toScene.getBoundingClientRect();
