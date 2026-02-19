@@ -787,8 +787,6 @@
             while (container.children.length > 0) {
                 container.removeChild(container.lastChild);
             }
-            // Reset carousel position
-            (container as HTMLElement).style.transform = '';
             
             scene2Episodes = [];
             const cellSize = 60;
