@@ -164,28 +164,28 @@
         <button id="next-btn" class="next-btn-spacing">Next</button>
     </div>
     <div id="scene-container">
-    <div id="scene1">
-    <canvas id="game-canvas"></canvas>
-    <div id="status">
-      <p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p>
-      <p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed if the red coin is collected or if the green coin is not collected). We test several times, to make sure (two doors in this simplified example).</p>
-      <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
-    </div>
-    <div id="progress-container">
-        <div id="progress-bar">0%</div>
-    </div>
-    </div>
-    <div id="scene2" class="hidden">
-        <!-- Episode-based scene with individual grids -->
-        <div id="scene2-status"></div>
-        <div class="carousel-container">
-            <div class="episodes-container">
-                <!-- Episodes will be rendered dynamically -->
+        <div id="scene1">
+            <canvas id="game-canvas"></canvas>
+            <div id="status">
+                <p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p>
+                <p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed if the red coin is collected or if the green coin is not collected). We test several times, to make sure (two doors in this simplified example).</p>
+                <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
             </div>
-            <div class="carousel-gradient-left"></div>
-            <div class="carousel-gradient-right"></div>
+            <div id="progress-container">
+                <div id="progress-bar">0%</div>
+            </div>
         </div>
-    </div>
+        <div id="scene2" class="hidden">
+            <!-- Episode-based scene with individual grids -->
+            <div id="scene2-status"></div>
+            <div class="carousel-container">
+                <div class="episodes-container">
+                    <!-- Episodes will be rendered dynamically -->
+                </div>
+                <div class="carousel-gradient-left"></div>
+                <div class="carousel-gradient-right"></div>
+            </div>
+        </div>
     </div>
 
     <script src="bundle.js"></script>
