@@ -459,6 +459,10 @@
         const scenarios: any[] = [];
         let currentScenarioIndex = 0;
 
+        function getTotalCoins(scenario) {
+            return scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+        }
+
         function buildScenarioElement(config) {
             const scenarioDiv = document.createElement('div');
             scenarioDiv.className = 'scenario';
@@ -638,7 +642,7 @@
 
                 drawGridOnCanvas(ctx, data, CELL_SIZE, episode.robotPos, episode.pickedGreen, episode.pickedRed);
 
-                const totalPicked = scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+                const totalPicked = getTotalCoins(scenario);
                 scenario.coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
 
                 const move = policy.get(key);
@@ -673,7 +677,7 @@
 
             drawGridOnCanvas(ctx, data, CELL_SIZE, episode.robotPos, episode.pickedGreen, episode.pickedRed);
 
-            const totalPicked = scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+            const totalPicked = getTotalCoins(scenario);
             scenario.coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
 
             const allGreenCollected = data.greenCoins.every(c => episode.pickedGreen.has(c.id));
@@ -729,7 +733,7 @@
             if (!scenario.animating) return;
 
             // Show conclusion
-            const totalPicked = scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+            const totalPicked = getTotalCoins(scenario);
             scenario.coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
             scenario.statusDiv.innerHTML = config.conclusionHTML;
 
