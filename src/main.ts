@@ -476,6 +476,8 @@
                 
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
+                if (!animating) break;
+                
                 // Execute move
                 if (move === 'up') robotPos.r--;
                 else if (move === 'down') robotPos.r++;
@@ -484,6 +486,8 @@
                 
                 step++;
             }
+            
+            if (!animating) return;
             
             // Final pickup
             for (const coin of greenCoins) {
