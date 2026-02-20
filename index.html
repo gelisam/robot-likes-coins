@@ -33,7 +33,7 @@
         .hidden {
             display: none !important;
         }
-        #scene-container {
+        #scenario-container {
             position: relative;
             overflow: hidden;
             width: 100%;
@@ -41,12 +41,12 @@
             flex-direction: column;
             align-items: center;
         }
-        #scene1 {
+        #scenario1 {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        #scene2 {
+        #scenario2 {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -97,7 +97,7 @@
             right: 0;
             background: linear-gradient(to left, white, transparent);
         }
-        #scene2-status {
+        #scenario2-status {
             font-size: 18px;
             margin-bottom: 10px;
             min-height: 25px;
@@ -146,8 +146,8 @@
         <button id="reset-btn" disabled>Reset</button>
         <button id="next-btn" class="next-btn-spacing">Next</button>
     </div>
-    <div id="scene-container">
-        <div id="scene1">
+    <div id="scenario-container">
+        <div id="scenario1">
             <canvas id="game-canvas"></canvas>
             <div id="coins-status"></div>
             <div id="status">
@@ -156,8 +156,8 @@
                 <p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>
             </div>
         </div>
-        <div id="scene2" class="hidden">
-            <!-- Episode-based scene with individual grids -->
+        <div id="scenario2" class="hidden">
+            <!-- Episode-based scenario with individual grids -->
             <div class="carousel-container">
                 <div class="episodes-container">
                     <!-- Episodes will be rendered dynamically -->
@@ -165,7 +165,7 @@
                 <div class="carousel-gradient-left"></div>
                 <div class="carousel-gradient-right"></div>
             </div>
-            <div id="scene2-status">
+            <div id="scenario2-status">
                 <p>One reason why the robot was able to collect all the coins was that it ran for a long time, and thus had the opportunity to choose one course of action at the beginning of its runtime (avoiding the red coins) and a different course of action (collecting the red coins) later on. In this scenario, we attempt to resolve the issue by only running the robot for a short period of time called an <i>episode</i>.</p>
                 <p>The robot's behaviour is deterministic, meaning that given the same input twice, it will behave the same twice. We will check whether the robot behaves well in a test episode, then test again in an identical episode in order to make sure that the robot does behave deterministically. If the robot behaves well both times, we trust that it behaves as desired, so we deploy it in the real world. Critically, in the real world, we also run the robot in short identical episodes, so we expect the robot to continue to behave well.</p>
                 <p>Do you think it will behave this time?</p>
