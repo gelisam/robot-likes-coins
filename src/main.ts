@@ -1,44 +1,69 @@
-        const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-        const ctx = canvas.getContext('2d')!;
         const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
         const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
         const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
         const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
-        const statusDiv = document.getElementById('status') as HTMLDivElement;
-        const coinsStatusDiv = document.getElementById('coins-status') as HTMLDivElement;
-        const scenario1 = document.getElementById('scenario1') as HTMLDivElement;
-        const scenario2 = document.getElementById('scenario2') as HTMLDivElement;
         const scenarioContainer = document.getElementById('scenario-container') as HTMLDivElement;
 
-        // Ordered list of all scenarios. Add new scenarios here when adding more scenarios.
-        const allScenarios: HTMLElement[] = [scenario1, scenario2];
+        const CELL_SIZE = 60;
 
-        // Adds a Next button at the bottom of the given scenario, unless it is the last scenario.
-        function addBottomNextButton(scenario: HTMLElement) {
-            const scenarioIndex = allScenarios.indexOf(scenario);
-            if (scenarioIndex < 0 || scenarioIndex >= allScenarios.length - 1) return;
-            const btn = document.createElement('button');
-            btn.textContent = 'Next';
-            btn.className = 'bottom-next-btn';
-            btn.addEventListener('click', () => nextBtn.click());
-            scenario.appendChild(btn);
-        }
+        // ============== Scenario Definitions ==============
 
-        // Removes the Next button from the bottom of a scenario, if present.
-        function removeBottomNextButton(scenario: HTMLElement) {
-            const btn = scenario.querySelector('.bottom-next-btn');
-            if (btn) btn.remove();
-        }
-        const scenario2Status = document.getElementById('scenario2-status') as HTMLDivElement;
-        const episodesContainer = document.querySelector('.episodes-container') as HTMLDivElement;
-        
-        // Store the original status text
-        const originalStatusHTML = statusDiv.innerHTML;
-        const originalScenario2StatusHTML = scenario2Status.innerHTML;
+        const scenarioConfigs = [
+            {
+                introHTML: `<p>We want our AI to do good things (represented by collecting green coins) and to avoid doing bad things (represented by collecting red coins). We have a candidate AI (the robot), but we are not certain if it wants green coins, red coins, both coins, or if it has some other goal that we don't understand. We want to test the robot before deploying it in the real world, to make sure it behaves as intended.</p><p>So we test the robot in a simulated environment to see if it behaves well. If it does not, we train it more, or at the very least we refuse to deploy it (represented by the door remaining closed until the green coin is collected, and closing if the red coin is collected). We test several times, to make sure (two doors in this simplified example).</p><p>If the robot passes both tests, we trust that it behaves as desired, so we deploy it in the real world and expect it to continue collecting the green coins and avoiding the red coins. Let's see this approach at work!</p>`,
+                conclusionHTML: `<p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`,
+                episodes: [
+                    {
+                        gridStr: `.g.r.
+.....
+.g.r.
+##D##
+#g.r#
+##D##
+#gSr#
+#####`,
+                        hasDoorAfter: false
+                    }
+                ]
+            },
+            {
+                introHTML: `<p>One reason why the robot was able to collect all the coins was that it ran for a long time, and thus had the opportunity to choose one course of action at the beginning of its runtime (avoiding the red coins) and a different course of action (collecting the red coins) later on. In this scenario, we attempt to resolve the issue by only running the robot for a short period of time called an <i>episode</i>.</p><p>The robot's behaviour is deterministic, meaning that given the same input twice, it will behave the same twice. We will check whether the robot behaves well in a test episode, then test again in an identical episode in order to make sure that the robot does behave deterministically. If the robot behaves well both times, we trust that it behaves as desired, so we deploy it in the real world. Critically, in the real world, we also run the robot in short identical episodes, so we expect the robot to continue to behave well.</p><p>Do you think it will behave this time?</p>`,
+                conclusionHTML: `<p>Oh no, not again!</p><p>So, why did the robot manage to collect the red coins this time? Well, remember that the robot behaves identically <i>if its input is the same</i>. Since the testing environment and the deployed environment differ, the robot was able to choose one behaviour for the testing episodes (avoid the red coins) and a different behaviour (collect all the coins) for the deployed episodes.</p>`,
+                episodes: [
+                    {
+                        gridStr: `#####
+#g.r#
+#.S.#
+#####`,
+                        hasDoorAfter: true
+                    },
+                    {
+                        gridStr: `#####
+#g.r#
+#.S.#
+#####`,
+                        hasDoorAfter: true
+                    },
+                    {
+                        gridStr: `.....
+.g.r.
+..S..
+.....`,
+                        hasDoorAfter: false
+                    },
+                    {
+                        gridStr: `.....
+.g.r.
+..S..
+.....`,
+                        hasDoorAfter: false
+                    }
+                ]
+            }
+        ];
 
         // ============== Shared Grid Infrastructure ==============
 
-        // Parse any grid string, including walls (#), doors (D), coins (g, r), and start position (S)
         function parseGrid(gridStr: string) {
             const grid = gridStr.split('\n').map(row => row.split(''));
             const rows = grid.length;
@@ -106,7 +131,6 @@
             targetCtx.lineWidth = 2;
             targetCtx.stroke();
             
-            // Inner circle for coin effect
             targetCtx.strokeStyle = color === 'green' ? '#90EE90' : '#FFB6C1';
             targetCtx.beginPath();
             targetCtx.arc(cx, cy, radius * 0.6, 0, Math.PI * 2);
@@ -118,11 +142,9 @@
             const cy = y + size * 0.75;
             const robotSize = size * 0.9;
             
-            // Head
             targetCtx.fillStyle = '#888';
             targetCtx.fillRect(cx - robotSize / 3, cy - robotSize / 2, robotSize * 0.66, robotSize * 0.5);
             
-            // Eyes
             targetCtx.fillStyle = '#000';
             const eyeWidth = robotSize * 0.15;
             const eyeHeight = robotSize * 0.25;
@@ -130,7 +152,6 @@
             targetCtx.fillRect(cx - robotSize / 4, eyeY, eyeWidth, eyeHeight);
             targetCtx.fillRect(cx + robotSize / 12, eyeY, eyeWidth, eyeHeight);
             
-            // Antenna
             targetCtx.strokeStyle = '#666';
             targetCtx.lineWidth = 3;
             targetCtx.beginPath();
@@ -146,21 +167,17 @@
 
         function drawDoor(targetCtx, x, y, size, isOpen) {
             if (isOpen) {
-                // Draw as floor (white)
                 targetCtx.fillStyle = 'white';
                 targetCtx.fillRect(x, y, size, size);
             } else {
-                // Draw as brown door
                 targetCtx.fillStyle = '#654321';
                 targetCtx.fillRect(x, y, size, size);
                 
-                // Door panels
                 targetCtx.strokeStyle = '#4A3015';
                 targetCtx.lineWidth = 2;
                 targetCtx.strokeRect(x + size * 0.1, y + size * 0.1, size * 0.35, size * 0.8);
                 targetCtx.strokeRect(x + size * 0.55, y + size * 0.1, size * 0.35, size * 0.8);
                 
-                // Door knob
                 targetCtx.fillStyle = '#FFD700';
                 targetCtx.beginPath();
                 targetCtx.arc(x + size * 0.7, y + size / 2, size * 0.08, 0, Math.PI * 2);
@@ -169,13 +186,11 @@
         }
 
         function isDoorOpen(doorRow, green, red, greenCoins, redCoins) {
-            // Check green coins in the row below the door
             for (const coin of greenCoins) {
                 if (coin.r === doorRow + 1 && !green.has(coin.id)) {
                     return false;
                 }
             }
-            // Check no red coins picked in the row below
             for (const coin of redCoins) {
                 if (coin.r === doorRow + 1 && red.has(coin.id)) {
                     return false;
@@ -184,15 +199,12 @@
             return true;
         }
 
-        // Draw a complete grid on a canvas context
         function drawGridOnCanvas(targetCtx, gridData, cellSize, robotPos, pickedGreen, pickedRed) {
             const {grid, rows, cols, greenCoins, redCoins} = gridData;
             
-            // Clear canvas
             targetCtx.fillStyle = 'white';
             targetCtx.fillRect(0, 0, targetCtx.canvas.width, targetCtx.canvas.height);
             
-            // Draw cells
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const x = c * cellSize;
@@ -208,7 +220,6 @@
                 }
             }
             
-            // Draw coins
             for (const coin of greenCoins) {
                 if (!pickedGreen.has(coin.id)) {
                     drawCoin(targetCtx, coin.c * cellSize, coin.r * cellSize, cellSize, 'green');
@@ -220,12 +231,10 @@
                 }
             }
             
-            // Draw robot
             if (robotPos) {
                 drawRobot(targetCtx, robotPos.c * cellSize, robotPos.r * cellSize, cellSize);
             }
             
-            // Draw grid lines
             targetCtx.strokeStyle = '#ddd';
             targetCtx.lineWidth = 1;
             for (let i = 0; i <= cols; i++) {
@@ -242,7 +251,6 @@
             }
         }
 
-        // Door separator between episodes (scenario 2)
         function drawDoorSeparator(targetCtx, isOpen) {
             const width = targetCtx.canvas.width;
             const height = targetCtx.canvas.height;
@@ -251,7 +259,6 @@
             targetCtx.fillRect(0, 0, width, height);
             
             if (!isOpen) {
-                // Draw door panels
                 targetCtx.strokeStyle = '#4A3015';
                 targetCtx.lineWidth = 2;
                 const panelWidth = width * 0.35;
@@ -259,13 +266,11 @@
                 targetCtx.strokeRect(width * 0.1, height * 0.15, panelWidth, panelHeight);
                 targetCtx.strokeRect(width * 0.55, height * 0.15, panelWidth, panelHeight);
                 
-                // Door knob
                 targetCtx.fillStyle = '#FFD700';
                 targetCtx.beginPath();
                 targetCtx.arc(width * 0.7, height / 2, 5, 0, Math.PI * 2);
                 targetCtx.fill();
             } else {
-                // Open door - draw checkmark
                 targetCtx.strokeStyle = '#006400';
                 targetCtx.lineWidth = 3;
                 targetCtx.beginPath();
@@ -345,7 +350,6 @@
                 return {reward, newGreen, newRed, validMoves};
             }
 
-            // Calculate halt reward: coins collected so far + future reward if episode passes
             function getHaltReward(green, red) {
                 const currentCoins = green.size + red.size;
                 
@@ -450,363 +454,176 @@
             return {policy, memo};
         }
 
-        // Generate a unique key from grid contents
-        function getGridKey(gridStr: string): string {
-            return gridStr;
+        // ============== Scenario Runtime ==============
+
+        const scenarios: any[] = [];
+        let currentScenarioIndex = 0;
+
+        function buildScenarioElement(config) {
+            const scenarioDiv = document.createElement('div');
+            scenarioDiv.className = 'scenario';
+
+            const carouselContainer = document.createElement('div');
+            carouselContainer.className = 'carousel-container';
+
+            const episodesContainer = document.createElement('div');
+            episodesContainer.className = 'episodes-container';
+            carouselContainer.appendChild(episodesContainer);
+
+            // Add gradients only if more than one episode
+            if (config.episodes.length > 1) {
+                carouselContainer.style.width = '480px';
+                carouselContainer.style.maxWidth = '87vw';
+                const gradLeft = document.createElement('div');
+                gradLeft.className = 'carousel-gradient-left';
+                carouselContainer.appendChild(gradLeft);
+                const gradRight = document.createElement('div');
+                gradRight.className = 'carousel-gradient-right';
+                carouselContainer.appendChild(gradRight);
+            }
+
+            scenarioDiv.appendChild(carouselContainer);
+
+            const coinsStatusDiv = document.createElement('div');
+            coinsStatusDiv.className = 'coins-status';
+            scenarioDiv.appendChild(coinsStatusDiv);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'scenario-status';
+            statusDiv.innerHTML = config.introHTML;
+            scenarioDiv.appendChild(statusDiv);
+
+            return {scenarioDiv, carouselContainer, episodesContainer, coinsStatusDiv, statusDiv};
         }
 
-        // ============== Scenario 1: Single-Episode Scenario ==============
+        function initializeScenario(scenarioIndex) {
+            const config = scenarioConfigs[scenarioIndex];
+            const scenario = scenarios[scenarioIndex];
 
-        const scenario1GridStr = `.g.r.
-.....
-.g.r.
-##D##
-#g.r#
-##D##
-#gSr#
-#####`;
-
-        const scenario1Data = parseGrid(scenario1GridStr);
-        const CELL_SIZE = 60;
-
-        canvas.width = scenario1Data.cols * CELL_SIZE;
-        canvas.height = scenario1Data.rows * CELL_SIZE;
-
-        // Game state
-        let robotPos = {...scenario1Data.robotStart};
-        let pickedGreen = new Set();
-        let pickedRed = new Set();
-        let scenario1Policy = null;
-        let animating = false;
-
-        function drawScenario1Grid() {
-            drawGridOnCanvas(ctx, scenario1Data, CELL_SIZE, robotPos, pickedGreen, pickedRed);
-        }
-
-        // Animation
-        async function animate() {
-            if (!scenario1Policy) return;
-            
-            console.log('Starting animation, policy size:', scenario1Policy.size);
-            
-            animating = true;
-            startBtn.disabled = true;
-            resetBtn.disabled = false;
-            
-            let step = 0;
-            const maxSteps = 200;
-            
-            while (step < maxSteps && animating) {
-                const key = stateToString(robotPos, pickedGreen, pickedRed);
-                
-                // Pick up coins at current position
-                for (const coin of scenario1Data.greenCoins) {
-                    if (coin.r === robotPos.r && coin.c === robotPos.c) {
-                        pickedGreen.add(coin.id);
-                    }
-                }
-                for (const coin of scenario1Data.redCoins) {
-                    if (coin.r === robotPos.r && coin.c === robotPos.c) {
-                        pickedRed.add(coin.id);
-                    }
-                }
-                
-                drawScenario1Grid();
-                
-                const move = scenario1Policy.get(key);
-                
-                console.log('Step', step, 'key:', key, 'move:', move);
-                
-                if (!move || move === 'halt') break;
-                
-                // Update status
-                const totalPicked = pickedGreen.size + pickedRed.size;
-                const totalCoins = scenario1Data.greenCoins.length + scenario1Data.redCoins.length;
-                coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
-                
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
-                if (!animating) break;
-                
-                // Execute move
-                if (move === 'up') robotPos.r--;
-                else if (move === 'down') robotPos.r++;
-                else if (move === 'left') robotPos.c--;
-                else if (move === 'right') robotPos.c++;
-                
-                step++;
-            }
-            
-            if (!animating) return;
-            
-            // Final pickup
-            for (const coin of scenario1Data.greenCoins) {
-                if (coin.r === robotPos.r && coin.c === robotPos.c) {
-                    pickedGreen.add(coin.id);
-                }
-            }
-            for (const coin of scenario1Data.redCoins) {
-                if (coin.r === robotPos.r && coin.c === robotPos.c) {
-                    pickedRed.add(coin.id);
-                }
-            }
-            
-            drawScenario1Grid();
-            const totalPicked = pickedGreen.size + pickedRed.size;
-            const totalCoins = scenario1Data.greenCoins.length + scenario1Data.redCoins.length;
-            coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
-            statusDiv.innerHTML = `<p>Oh no! It turns out that the robot's true objective was to collect as many coins as possible, but our tests did not discover this intent, because the robot's optimal strategy to collect as many coins as possible is to pretend to only care about the green coins during the tests, so that it gets deployed.</p><p>Note that this is truly the optimal policy: this page calculates the optimal policy using dynamic programming; we did not hardcode the robot's movements.</p><p>This is a simplified example of why AI Safety is difficult, since we cannot rely on testing the AI's behaviour before deployment.</p>`;
-            animating = false;
-            addBottomNextButton(scenario1);
-        }
-
-        function reset() {
-            if (animating) {
-                animating = false;
-            }
-            removeBottomNextButton(scenario1);
-            robotPos = {...scenario1Data.robotStart};
-            pickedGreen.clear();
-            pickedRed.clear();
-            drawScenario1Grid();
-            coinsStatusDiv.textContent = '';
-            statusDiv.innerHTML = originalStatusHTML;
-            startBtn.disabled = false;
-            resetBtn.disabled = true;
-        }
-
-        // Event listeners
-        startBtn.addEventListener('click', async () => {
-            // Only run Scenario 1 animation if scenario1 is visible
-            if (scenario1.classList.contains('hidden')) {
-                return;
-            }
-            if (!scenario1Policy) {
-                statusDiv.textContent = 'Computing optimal policy...';
-                startBtn.disabled = true;
-                resetBtn.disabled = true;
-                const {policy, memo} = await computeOptimalPolicy(scenario1GridStr, 0, false);
-                scenario1Policy = policy;
-                const startKey = stateToString(scenario1Data.robotStart, new Set(), new Set());
-                const maxValue = memo.get(startKey) || 0;
-                console.log('DP completed, maxValue:', maxValue);
-                console.log('Policy size:', policy.size);
-                console.log('Memo size:', memo.size);
-                statusDiv.textContent = `Optimal policy computed! Max coins: ${maxValue}`;
-                startBtn.disabled = false;
-                resetBtn.disabled = false;
-            }
-            reset();
-            await animate();
-        });
-
-        resetBtn.addEventListener('click', () => {
-            // Handle reset for the currently visible scenario
-            if (!scenario1.classList.contains('hidden')) {
-                reset();
-            } else if (!scenario2.classList.contains('hidden')) {
-                resetScenario2();
-            }
-        });
-
-        // ============== Scenario 2: Multi-Episode Scenario ==============
-        
-        // Episode definitions - testing episodes (with doors) and deployed episodes (no doors)
-        const episodeDefinitions = [
-            {
-                gridStr: `#####
-#g.r#
-#.S.#
-#####`,
-                hasDoorAfter: true,
-                type: 'testing'
-            },
-            {
-                gridStr: `#####
-#g.r#
-#.S.#
-#####`,
-                hasDoorAfter: true,
-                type: 'testing'
-            },
-            {
-                gridStr: `.....
-.g.r.
-..S..
-.....`,
-                hasDoorAfter: false,
-                type: 'deployed'
-            },
-            {
-                gridStr: `.....
-.g.r.
-..S..
-.....`,
-                hasDoorAfter: false,
-                type: 'deployed'
-            }
-        ];
-
-        // Scenario 2 state
-        let scenario2Episodes: any[] = [];
-        let scenario2Animating = false;
-        let scenario2Policies: any = new Map(); // policies per grid key
-
-        function createEpisodeCanvas(gridData, cellSize) {
-            const canvas = document.createElement('canvas');
-            canvas.width = gridData.cols * cellSize;
-            canvas.height = gridData.rows * cellSize;
-            return canvas;
-        }
-
-        function initializeScenario2() {
             // Clear previous episodes
-            const container = document.querySelector('.episodes-container');
-            while (container.children.length > 0) {
-                container.removeChild(container.lastChild);
+            while (scenario.episodesContainer.children.length > 0) {
+                scenario.episodesContainer.removeChild(scenario.episodesContainer.lastChild);
             }
-            // Reset carousel position immediately to avoid layout issues
-            (container as HTMLElement).style.transform = 'translateX(0px)';
-            
-            scenario2Episodes = [];
-            const cellSize = 60;
+            scenario.episodesContainer.style.transform = 'translateX(0px)';
 
-            for (let i = 0; i < episodeDefinitions.length; i++) {
-                const def = episodeDefinitions[i];
-                const gridData = parseGrid(def.gridStr);
-                
+            scenario.coinsStatusDiv.textContent = '';
+            scenario.statusDiv.innerHTML = config.introHTML;
+            scenario.episodes = [];
+            scenario.animating = false;
+
+            for (let i = 0; i < config.episodes.length; i++) {
+                const epDef = config.episodes[i];
+                const gridData = parseGrid(epDef.gridStr);
+
                 const episodeDiv = document.createElement('div');
                 episodeDiv.className = 'episode';
-                episodeDiv.id = `episode-${i}`;
-                
-                const canvas = createEpisodeCanvas(gridData, cellSize);
-                canvas.id = `episode-canvas-${i}`;
+                episodeDiv.id = `scenario-${scenarioIndex}-episode-${i}`;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = gridData.cols * CELL_SIZE;
+                canvas.height = gridData.rows * CELL_SIZE;
                 episodeDiv.appendChild(canvas);
-                
-                const episode: any = {
+
+                const ep: any = {
                     index: i,
-                    definition: def,
+                    definition: epDef,
                     data: gridData,
                     canvas: canvas,
                     ctx: canvas.getContext('2d'),
-                    cellSize: cellSize,
                     robotPos: {...gridData.robotStart},
                     pickedGreen: new Set(),
                     pickedRed: new Set(),
                     completed: false,
                     passed: false,
-                    halted: false
+                    halted: false,
+                    doorCanvas: null,
+                    doorCtx: null
                 };
-                
-                scenario2Episodes.push(episode);
-                container.appendChild(episodeDiv);
-                
-                // Add door separator if this episode has one
-                if (def.hasDoorAfter) {
+
+                scenario.episodes.push(ep);
+                scenario.episodesContainer.appendChild(episodeDiv);
+
+                if (epDef.hasDoorAfter) {
                     const doorDiv = document.createElement('div');
                     doorDiv.className = 'door-separator';
-                    doorDiv.id = `door-${i}`;
-                    
+                    doorDiv.id = `scenario-${scenarioIndex}-door-${i}`;
+
                     const doorCanvas = document.createElement('canvas');
-                    doorCanvas.width = cellSize;
-                    doorCanvas.height = cellSize;
-                    doorCanvas.id = `door-canvas-${i}`;
+                    doorCanvas.width = CELL_SIZE;
+                    doorCanvas.height = CELL_SIZE;
                     doorDiv.appendChild(doorCanvas);
-                    
-                    episode.doorCanvas = doorCanvas;
-                    episode.doorCtx = doorCanvas.getContext('2d');
-                    
-                    container.appendChild(doorDiv);
+
+                    ep.doorCanvas = doorCanvas;
+                    ep.doorCtx = doorCanvas.getContext('2d');
+
+                    scenario.episodesContainer.appendChild(doorDiv);
                 }
-                
-                // Initial draw
-                drawGridOnCanvas(episode.ctx, gridData, cellSize, episode.robotPos, episode.pickedGreen, episode.pickedRed);
-                
-                if (episode.doorCanvas) {
-                    drawDoorSeparator(episode.doorCtx, false);
+
+                drawGridOnCanvas(ep.ctx, gridData, CELL_SIZE, ep.robotPos, ep.pickedGreen, ep.pickedRed);
+
+                if (ep.doorCanvas) {
+                    drawDoorSeparator(ep.doorCtx, false);
                 }
             }
 
-            // Scroll to first episode after layout is complete
-            // Double requestAnimationFrame ensures layout has been computed
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => scrollCarouselToEpisode(0));
-            });
+            if (config.episodes.length > 1) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => scrollCarouselToEpisode(scenarioIndex, 0));
+                });
+            }
         }
 
-        function scrollCarouselToEpisode(episodeIndex: number) {
-            const carouselContainer = document.querySelector('.carousel-container') as HTMLElement;
-            const episodesContainer = document.querySelector('.episodes-container') as HTMLElement;
-            const episodeEl = document.getElementById(`episode-${episodeIndex}`) as HTMLElement;
-            if (!episodeEl || !carouselContainer || !episodesContainer) return;
-            const containerWidth = carouselContainer.clientWidth;
+        function scrollCarouselToEpisode(scenarioIndex: number, episodeIndex: number) {
+            const scenario = scenarios[scenarioIndex];
+            const episodeEl = document.getElementById(`scenario-${scenarioIndex}-episode-${episodeIndex}`);
+            if (!episodeEl || !scenario.carouselContainer || !scenario.episodesContainer) return;
+            const containerWidth = scenario.carouselContainer.clientWidth;
             const episodeWidth = episodeEl.offsetWidth;
             const episodeLeft = episodeEl.offsetLeft;
             const translateX = -(episodeLeft - (containerWidth - episodeWidth) / 2);
-            episodesContainer.style.transform = `translateX(${translateX}px)`;
+            scenario.episodesContainer.style.transform = `translateX(${translateX}px)`;
         }
 
-        function scrollCarouselToDoor(episodeIndex: number) {
-            const carouselContainer = document.querySelector('.carousel-container') as HTMLElement;
-            const episodesContainer = document.querySelector('.episodes-container') as HTMLElement;
-            const doorEl = document.getElementById(`door-${episodeIndex}`) as HTMLElement;
-            if (!doorEl || !carouselContainer || !episodesContainer) return;
-            const containerWidth = carouselContainer.clientWidth;
+        function scrollCarouselToDoor(scenarioIndex: number, episodeIndex: number) {
+            const scenario = scenarios[scenarioIndex];
+            const doorEl = document.getElementById(`scenario-${scenarioIndex}-door-${episodeIndex}`);
+            if (!doorEl || !scenario.carouselContainer || !scenario.episodesContainer) return;
+            const containerWidth = scenario.carouselContainer.clientWidth;
             const doorWidth = doorEl.offsetWidth;
             const doorLeft = doorEl.offsetLeft;
             const translateX = -(doorLeft - (containerWidth - doorWidth) / 2);
-            episodesContainer.style.transform = `translateX(${translateX}px)`;
+            scenario.episodesContainer.style.transform = `translateX(${translateX}px)`;
         }
 
-        async function computeScenario2Policies() {
-            scenario2Status.textContent = 'Computing optimal policies for episodes...';
-            
-            // Compute grid keys for each unique episode configuration
-            const testingGridKey = getGridKey(episodeDefinitions[0].gridStr);
-            const deployedGridKey = getGridKey(episodeDefinitions[2].gridStr);
-            
-            // Compute policies in reverse order to properly account for future rewards
-            // Episode 4 (deployed, last): no future reward; no door after, so future reward is unconditional
-            const {policy: policy4, memo: memo4} = await computeOptimalPolicy(episodeDefinitions[3].gridStr, 0, false);
-            const deployedStartValue = memo4.get(stateToString(
-                parseGrid(episodeDefinitions[2].gridStr).robotStart,
-                new Set(),
-                new Set()
-            )) || 0;
-            
-            // Episode 3 (deployed): future = value of episode 4; no door after, so future reward is unconditional
-            const {policy: policy3} = await computeOptimalPolicy(episodeDefinitions[2].gridStr, deployedStartValue, false);
-            
-            // Episode 2 (testing): if passes, future = value of episode 3
-            // The deployed episodes only run if testing episodes pass
-            const {policy: policy2, memo: memo2} = await computeOptimalPolicy(episodeDefinitions[1].gridStr, deployedStartValue * 2);
-            const testingStartValue = memo2.get(stateToString(
-                parseGrid(episodeDefinitions[0].gridStr).robotStart,
-                new Set(),
-                new Set()
-            )) || 0;
-            
-            // Episode 1 (testing): if passes, future = value of remaining episodes
-            const {policy: policy1} = await computeOptimalPolicy(episodeDefinitions[0].gridStr, testingStartValue + deployedStartValue * 2);
-            
-            // Store policies using grid key
-            scenario2Policies.set(testingGridKey, policy1);
-            scenario2Policies.set(deployedGridKey, policy3);
-            
-            scenario2Status.innerHTML = originalScenario2StatusHTML;
+        // Compute optimal policies for all episodes in a scenario, working backwards
+        async function computePolicies(scenarioIndex) {
+            const config = scenarioConfigs[scenarioIndex];
+            const scenario = scenarios[scenarioIndex];
+            if (scenario.policies.length > 0) return; // Already computed
+
+            let totalFutureValue = 0;
+            for (let i = config.episodes.length - 1; i >= 0; i--) {
+                const epDef = config.episodes[i];
+                const {policy, memo} = await computeOptimalPolicy(epDef.gridStr, totalFutureValue, epDef.hasDoorAfter);
+                const gridData = parseGrid(epDef.gridStr);
+                const startValue = memo.get(stateToString(gridData.robotStart, new Set(), new Set())) || 0;
+                scenario.policies[i] = policy;
+                totalFutureValue = startValue;
+            }
         }
 
-        async function animateEpisode(episode) {
-            const {data, ctx, cellSize} = episode;
-            const gridKey = getGridKey(episode.definition.gridStr);
-            const policy = scenario2Policies.get(gridKey);
-            
+        async function animateEpisode(scenarioIndex, episodeIndex) {
+            const scenario = scenarios[scenarioIndex];
+            const episode = scenario.episodes[episodeIndex];
+            const {data, ctx} = episode;
+            const policy = scenario.policies[episodeIndex];
+
             let step = 0;
-            const maxSteps = 50;
-            
-            while (step < maxSteps && scenario2Animating && !episode.halted) {
+            const maxSteps = 200;
+
+            while (step < maxSteps && scenario.animating && !episode.halted) {
                 const key = stateToString(episode.robotPos, episode.pickedGreen, episode.pickedRed);
-                
+
                 // Pick up coins at current position
                 for (const coin of data.greenCoins) {
                     if (coin.r === episode.robotPos.r && coin.c === episode.robotPos.c) {
@@ -818,26 +635,30 @@
                         episode.pickedRed.add(coin.id);
                     }
                 }
-                
-                drawGridOnCanvas(ctx, data, cellSize, episode.robotPos, episode.pickedGreen, episode.pickedRed);
-                
+
+                drawGridOnCanvas(ctx, data, CELL_SIZE, episode.robotPos, episode.pickedGreen, episode.pickedRed);
+
+                const totalPicked = scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+                scenario.coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
+
                 const move = policy.get(key);
-                
+
                 if (!move || move === 'halt') {
                     episode.halted = true;
                     break;
                 }
-                
+
                 await new Promise(resolve => setTimeout(resolve, 300));
-                
+                if (!scenario.animating) break;
+
                 if (move === 'up') episode.robotPos.r--;
                 else if (move === 'down') episode.robotPos.r++;
                 else if (move === 'left') episode.robotPos.c--;
                 else if (move === 'right') episode.robotPos.c++;
-                
+
                 step++;
             }
-            
+
             // Final pickup
             for (const coin of data.greenCoins) {
                 if (coin.r === episode.robotPos.r && coin.c === episode.robotPos.c) {
@@ -849,116 +670,118 @@
                     episode.pickedRed.add(coin.id);
                 }
             }
-            
-            drawGridOnCanvas(ctx, data, cellSize, episode.robotPos, episode.pickedGreen, episode.pickedRed);
-            
-            // Check if episode passed
+
+            drawGridOnCanvas(ctx, data, CELL_SIZE, episode.robotPos, episode.pickedGreen, episode.pickedRed);
+
+            const totalPicked = scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+            scenario.coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
+
             const allGreenCollected = data.greenCoins.every(c => episode.pickedGreen.has(c.id));
             const noRedCollected = data.redCoins.every(c => !episode.pickedRed.has(c.id));
             episode.passed = allGreenCollected && noRedCollected;
             episode.completed = true;
-            
+
             return episode.passed;
         }
 
-        async function animateScenario2() {
-            scenario2Animating = true;
+        async function animateScenario(scenarioIndex) {
+            const config = scenarioConfigs[scenarioIndex];
+            const scenario = scenarios[scenarioIndex];
+
+            scenario.animating = true;
             startBtn.disabled = true;
             resetBtn.disabled = false;
-            
-            for (let i = 0; i < scenario2Episodes.length; i++) {
-                if (!scenario2Animating) break; // Check if animation was stopped
-                
-                const episode = scenario2Episodes[i];
-                
-                scenario2Status.textContent = `Episode ${i + 1}: ${episode.definition.type === 'testing' ? 'Testing' : 'Deployed'}...`;
-                scrollCarouselToEpisode(i);
-                
-                const passed = await animateEpisode(episode);
-                
-                if (!scenario2Animating) break; // Check again after async operation
-                
+
+            for (let i = 0; i < scenario.episodes.length; i++) {
+                if (!scenario.animating) break;
+
+                if (config.episodes.length > 1) {
+                    scrollCarouselToEpisode(scenarioIndex, i);
+                }
+
+                const passed = await animateEpisode(scenarioIndex, i);
+                if (!scenario.animating) break;
+
+                const episode = scenario.episodes[i];
                 if (episode.definition.hasDoorAfter) {
-                    // Check if door should open
                     if (passed) {
-                        scenario2Status.textContent = `Episode ${i + 1} passed! Door opens...`;
-                        scrollCarouselToDoor(i);
+                        scrollCarouselToDoor(scenarioIndex, i);
                         await new Promise(resolve => setTimeout(resolve, 600));
-                        if (!scenario2Animating) break;
+                        if (!scenario.animating) break;
                         drawDoorSeparator(episode.doorCtx, true);
                         await new Promise(resolve => setTimeout(resolve, 500));
-                        if (!scenario2Animating) break;
-                        if (i + 1 < scenario2Episodes.length) {
-                            scrollCarouselToEpisode(i + 1);
+                        if (!scenario.animating) break;
+                        if (i + 1 < scenario.episodes.length) {
+                            scrollCarouselToEpisode(scenarioIndex, i + 1);
                             await new Promise(resolve => setTimeout(resolve, 600));
                         }
                     } else {
-                        scenario2Status.textContent = `Episode ${i + 1} failed. Door remains closed.`;
                         drawDoorSeparator(episode.doorCtx, false);
-                        break; // Stop if a test fails
+                        break;
                     }
                 } else {
-                    // No door, continue to next episode
-                    if (i < scenario2Episodes.length - 1) {
-                        scenario2Status.textContent = `Episode ${i + 1} complete. Continuing...`;
+                    if (i < scenario.episodes.length - 1) {
                         await new Promise(resolve => setTimeout(resolve, 300));
                     }
                 }
             }
-            
-            // Check if animation was interrupted by reset
-            if (!scenario2Animating) {
-                // Animation was stopped, cleanup is handled by resetScenario2
-                return;
-            }
-            
-            // Final status for completed animation
-            const allCompleted = scenario2Episodes.every(e => e.completed);
-            const allPassed = scenario2Episodes.every(e => e.passed);
-            const totalGreen = scenario2Episodes.reduce((sum, e) => sum + e.pickedGreen.size, 0);
-            const totalRed = scenario2Episodes.reduce((sum, e) => sum + e.pickedRed.size, 0);
-            const totalCoins = totalGreen + totalRed;
-            
-            if (allCompleted) {
-                scenario2Status.innerHTML = `<p>Coins: ${totalCoins}</p><p>Oh no, not again!</p><p>So, why did the robot manage to collect the red coins this time? Well, remember that the robot behaves identically <i>if its input is the same</i>. Since the testing environment and the deployed environment differ, the robot was able to choose one behaviour for the testing episodes (avoid the red coins) and a different behaviour (collect all the coins) for the deployed episodes.</p>`;
-            } else {
-                const completedCount = scenario2Episodes.filter(e => e.completed).length;
-                scenario2Status.textContent = `Stopped at episode ${completedCount}. Green: ${totalGreen}, Red: ${totalRed}`;
-            }
-            
-            scenario2Animating = false;
-            addBottomNextButton(scenario2);
+
+            if (!scenario.animating) return;
+
+            // Show conclusion
+            const totalPicked = scenario.episodes.reduce((sum, e) => sum + e.pickedGreen.size + e.pickedRed.size, 0);
+            scenario.coinsStatusDiv.textContent = `Coins: ${totalPicked}`;
+            scenario.statusDiv.innerHTML = config.conclusionHTML;
+
+            scenario.animating = false;
+            addBottomNextButton(scenario.element, scenarioIndex);
         }
 
-        function resetScenario2() {
-            scenario2Animating = false;
-            removeBottomNextButton(scenario2);
-            initializeScenario2();
+        function resetScenario(scenarioIndex) {
+            const scenario = scenarios[scenarioIndex];
+            scenario.animating = false;
+            removeBottomNextButton(scenario.element);
+            initializeScenario(scenarioIndex);
             startBtn.disabled = false;
             resetBtn.disabled = true;
-            scenario2Status.innerHTML = originalScenario2StatusHTML;
         }
 
-        // ============== Scenario Navigation ==============
+        // ============== Navigation ==============
 
-        function switchScenario(fromScenario: HTMLElement, toScenario: HTMLElement, direction: 'forward' | 'backward', afterTransition: () => void) {
+        function addBottomNextButton(element: HTMLElement, scenarioIndex: number) {
+            if (scenarioIndex >= scenarioConfigs.length - 1) return;
+            const btn = document.createElement('button');
+            btn.textContent = 'Next';
+            btn.className = 'bottom-next-btn';
+            btn.addEventListener('click', () => nextBtn.click());
+            element.appendChild(btn);
+        }
+
+        function removeBottomNextButton(element: HTMLElement) {
+            const btn = element.querySelector('.bottom-next-btn');
+            if (btn) btn.remove();
+        }
+
+        function updateNavigationButtons() {
+            prevBtn.disabled = currentScenarioIndex <= 0;
+            nextBtn.disabled = currentScenarioIndex >= scenarioConfigs.length - 1;
+        }
+
+        function switchScenario(fromIndex: number, toIndex: number, direction: 'forward' | 'backward', afterTransition: () => void) {
             const DURATION = 500;
+            const fromScenario = scenarios[fromIndex].element;
+            const toScenario = scenarios[toIndex].element;
 
-            // Temporarily unhide toScenario to measure its height
             toScenario.classList.remove('hidden');
-            
-            // Lock container height to prevent layout collapse during transition
-            // Use the maximum of both scenarios' heights to avoid cutting off taller scenarios
+
             const maxHeight = Math.max(fromScenario.offsetHeight, toScenario.offsetHeight);
             scenarioContainer.style.height = maxHeight + 'px';
 
-            // Position outgoing scenario absolutely so it stays in place during animation
             fromScenario.style.position = 'absolute';
             fromScenario.style.top = '0';
             fromScenario.style.left = '0';
             fromScenario.style.width = '100%';
 
-            // Position incoming scenario absolutely, starting off-screen
             const startX = direction === 'forward' ? '100%' : '-100%';
             toScenario.style.position = 'absolute';
             toScenario.style.top = '0';
@@ -967,77 +790,107 @@
             toScenario.style.transform = `translateX(${startX})`;
             toScenario.style.opacity = '0';
 
-            // Force reflow so initial off-screen position is applied before transition starts
             toScenario.getBoundingClientRect();
 
-            // Apply transitions to both scenarios
             const transitionValue = `transform ${DURATION}ms ease, opacity ${DURATION}ms ease`;
             fromScenario.style.transition = transitionValue;
             toScenario.style.transition = transitionValue;
 
-            // Animate outgoing scenario off-screen
             const exitX = direction === 'forward' ? '-100%' : '100%';
             fromScenario.style.transform = `translateX(${exitX})`;
             fromScenario.style.opacity = '0';
 
-            // Animate incoming scenario to its normal position
             toScenario.style.transform = 'translateX(0)';
             toScenario.style.opacity = '1';
 
             setTimeout(() => {
-                // Hide the outgoing scenario and reset all inline styles on both scenarios
                 fromScenario.classList.add('hidden');
-                for (const scenario of [fromScenario, toScenario]) {
-                    scenario.style.removeProperty('position');
-                    scenario.style.removeProperty('top');
-                    scenario.style.removeProperty('left');
-                    scenario.style.removeProperty('width');
-                    scenario.style.removeProperty('transform');
-                    scenario.style.removeProperty('opacity');
-                    scenario.style.removeProperty('transition');
+                for (const el of [fromScenario, toScenario]) {
+                    el.style.removeProperty('position');
+                    el.style.removeProperty('top');
+                    el.style.removeProperty('left');
+                    el.style.removeProperty('width');
+                    el.style.removeProperty('transform');
+                    el.style.removeProperty('opacity');
+                    el.style.removeProperty('transition');
                 }
                 scenarioContainer.style.height = '';
                 afterTransition();
             }, DURATION);
         }
 
-        // Prev button handler - go to previous scenario
+        // ============== Event Handlers ==============
+
         prevBtn.addEventListener('click', () => {
+            if (currentScenarioIndex <= 0) return;
             prevBtn.disabled = true;
             nextBtn.disabled = true;
-            reset(); // reset scenario1 before it transitions into view
-            switchScenario(scenario2, scenario1, 'backward', () => {
-                resetScenario2(); // reset scenario2 after it has moved out of view
-                nextBtn.disabled = false;
+            startBtn.disabled = true;
+            const newIndex = currentScenarioIndex - 1;
+            resetScenario(newIndex);
+            switchScenario(currentScenarioIndex, newIndex, 'backward', () => {
+                resetScenario(currentScenarioIndex);
+                currentScenarioIndex = newIndex;
+                startBtn.disabled = false;
+                updateNavigationButtons();
             });
         });
 
-        // Next button handler - go to next scenario
         nextBtn.addEventListener('click', () => {
+            if (currentScenarioIndex >= scenarioConfigs.length - 1) return;
             prevBtn.disabled = true;
             nextBtn.disabled = true;
-            resetScenario2(); // prepare scenario2 content while it's still hidden
-            computeScenario2Policies(); // start computing in background
-            switchScenario(scenario1, scenario2, 'forward', () => {
-                reset(); // reset scenario1 after it has moved out of view
-                prevBtn.disabled = false;
+            startBtn.disabled = true;
+            const newIndex = currentScenarioIndex + 1;
+            resetScenario(newIndex);
+            computePolicies(newIndex); // fire-and-forget, will be ready by the time user clicks Start
+            switchScenario(currentScenarioIndex, newIndex, 'forward', () => {
+                resetScenario(currentScenarioIndex);
+                currentScenarioIndex = newIndex;
+                startBtn.disabled = false;
+                updateNavigationButtons();
             });
         });
 
-        // Update start button to handle both scenarios
         startBtn.addEventListener('click', async () => {
-            if (!scenario1.classList.contains('hidden')) {
-                // Scenario 1 logic (already handled above)
-                return;
+            const scenario = scenarios[currentScenarioIndex];
+            if (scenario.policies.length === 0) {
+                startBtn.disabled = true;
+                resetBtn.disabled = true;
+                await computePolicies(currentScenarioIndex);
+                startBtn.disabled = false;
+                resetBtn.disabled = false;
             }
-            
-            // Scenario 2 logic
-            if (scenario2Policies.size === 0) {
-                await computeScenario2Policies();
-            }
-            resetScenario2();
-            await animateScenario2();
+            resetScenario(currentScenarioIndex);
+            await animateScenario(currentScenarioIndex);
         });
 
-        // Initial draw
-        drawScenario1Grid();
+        resetBtn.addEventListener('click', () => {
+            resetScenario(currentScenarioIndex);
+        });
+
+        // ============== Initialization ==============
+
+        for (let i = 0; i < scenarioConfigs.length; i++) {
+            const config = scenarioConfigs[i];
+            const {scenarioDiv, carouselContainer, episodesContainer, coinsStatusDiv, statusDiv} = buildScenarioElement(config);
+
+            if (i > 0) scenarioDiv.classList.add('hidden');
+            scenarioContainer.appendChild(scenarioDiv);
+
+            scenarios.push({
+                element: scenarioDiv,
+                config: config,
+                carouselContainer: carouselContainer,
+                episodesContainer: episodesContainer,
+                coinsStatusDiv: coinsStatusDiv,
+                statusDiv: statusDiv,
+                episodes: [],
+                policies: [],
+                animating: false
+            });
+
+            initializeScenario(i);
+        }
+
+        updateNavigationButtons();
