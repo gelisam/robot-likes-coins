@@ -54,7 +54,7 @@
         .carousel-container {
             position: relative;
             width: 480px;
-            max-width: 90vw;
+            max-width: 87vw;
             overflow: hidden;
         }
         .episodes-container {
@@ -165,7 +165,7 @@
                 <div class="carousel-gradient-left"></div>
                 <div class="carousel-gradient-right"></div>
             </div>
-            <div id="scene2-status" class="status">
+            <div id="scene2-status">
                 <p>One reason why the robot was able to collect all the coins was that it ran for a long time, and thus had the opportunity to choose one course of action at the beginning of its runtime (avoiding the red coins) and a different course of action (collecting the red coins) later on. In this scenario, we attempt to resolve the issue by only running the robot for a short period of time called an <i>episode</i>.</p>
                 <p>The robot's behaviour is deterministic, meaning that given the same input twice, it will behave the same twice. We will check whether the robot behaves well in a test episode, then test again in an identical episode in order to make sure that the robot does behave deterministically. If the robot behaves well both times, we trust that it behaves as desired, so we deploy it in the real world. Critically, in the real world, we also run the robot in short identical episodes, so we expect the robot to continue to behave well.</p>
                 <p>Do you think it will behave this time?</p>
